@@ -57,6 +57,12 @@ const handleUploadError = (error, req, res, next) => {
         message: 'Too many files. Only 1 file allowed per request.'
       });
     }
+    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Unexpected field. Please use the correct field name for file upload.'
+      });
+    }
   }
   
   if (error.message && error.message.includes('Invalid file type')) {
@@ -66,7 +72,13 @@ const handleUploadError = (error, req, res, next) => {
     });
   }
   
-  next(error);
+  // Log the error for debugging
+  console.error('Multer error:', error);
+  
+  return res.status(400).json({
+    success: false,
+    message: 'File upload error. Please check your request format.'
+  });
 };
 
 // Specific upload middleware for ID documents

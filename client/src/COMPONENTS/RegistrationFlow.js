@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { authAPI, storage } from "../services/api";
+import NavBar from "./NavBar";
 /**
- * Digital ID System – Registration Flow (4 steps)
- *
- * Styling uses Tailwind classes; no external UI kits required.
+ * Digital ID System – Registration Flow (5 steps)
+ * Clean UI, strong UX; demo-complete
  */
 
 // Utility: simple classnames merger
@@ -13,9 +14,10 @@ function cx(...args) {
 
 const STEPS = [
   { id: 1, label: "Basic Details" },
-  { id: 2, label: "Document Upload & OCR" },
-  { id: 3, label: "Facial Capture & Liveness" },
-  { id: 4, label: "Face Matching Confirmation" },
+  { id: 2, label: "Password Setup" },
+  { id: 3, label: "Document Upload & OCR" },
+  { id: 4, label: "Facial Capture & Liveness" },
+  { id: 5, label: "Face Matching Confirmation" },
 ];
 
 // Residency list (sample)
@@ -28,10 +30,13 @@ const RESIDENCIES = [
 ];
 
 export default function RegistrationFlow() {
+  const navigate = useNavigate();
+  
   // Schema-aligned state
   const [user, setUser] = useState({
     email: "",
     password: "", 
+    confirmPassword: "",
     birthDate: "",
     residency: "",
     kycStatus: "pending",
@@ -47,6 +52,7 @@ export default function RegistrationFlow() {
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   // Document upload handling (Step 2)
   const [docPreviewName, setDocPreviewName] = useState("");
@@ -72,6 +78,57 @@ export default function RegistrationFlow() {
     []
   );
 
+  // Page-level scroll (hidden scrollbar handled via CSS class)
+  // No body locking here to allow natural page scrolling
+
+  // Validation functions
+  const validateStep1 = () => {
+    const newErrors = {};
+    
+    if (!user.email) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(user.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+    
+    if (!user.birthDate) {
+      newErrors.birthDate = "Date of birth is required";
+    } else {
+      const age = new Date().getFullYear() - new Date(user.birthDate).getFullYear();
+      if (age < 18) {
+        newErrors.birthDate = "You must be at least 18 years old";
+      }
+    }
+    
+    if (!user.residency) {
+      newErrors.residency = "Please select your residency";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateStep2 = () => {
+    const newErrors = {};
+    
+    if (!user.password) {
+      newErrors.password = "Password is required";
+    } else if (user.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters long";
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(user.password)) {
+      newErrors.password = "Password must contain at least one uppercase letter, one lowercase letter, and one number";
+    }
+    
+    if (!user.confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (user.password !== user.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   // Validation
   const canNextFromStep1 = useMemo(() => {
     if (!user.email) return false;
@@ -81,14 +138,21 @@ export default function RegistrationFlow() {
     return true;
   }, [user]);
 
-  const canNextFromStep2 = useMemo(() => !!docBase64, [docBase64]);
-  const canNextFromStep3 = useMemo(
+  const canNextFromStep2 = useMemo(() => {
+    if (!user.password) return false;
+    if (user.password.length < 6) return false;
+    if (user.password !== user.confirmPassword) return false;
+    return true;
+  }, [user]);
+
+  const canNextFromStep3 = useMemo(() => !!docBase64, [docBase64]);
+  const canNextFromStep4 = useMemo(
     () => !!user.faceData.liveFaceImage || !usingCamera, // allow demo skip
     [user.faceData.liveFaceImage, usingCamera]
   );
 
   // Navigation
-  const goNext = () => setStep((s) => Math.min(4, s + 1));
+  const goNext = () => setStep((s) => Math.min(5, s + 1));
   const goBack = () => setStep((s) => Math.max(1, s - 1));
 
   // Camera controls
@@ -147,7 +211,7 @@ export default function RegistrationFlow() {
         faceData: { ...u.faceData, faceMatched: !!hasBoth },
       }));
     }
-  }, [step]);
+  }, [step, user.faceData.idFaceImage, user.faceData.liveFaceImage]);
 
   // Handle doc upload -> preview + fake OCR fill-in
   const handleDocChange = async (file) => {
@@ -198,66 +262,50 @@ export default function RegistrationFlow() {
   };
 
   // Final submit payload aligned with schema
-  const buildPayload = () => ({
-    email: user.email,
-    password: user.password || undefined,
-    birthDate: user.birthDate ? new Date(user.birthDate) : null,
-    residency: user.residency,
-    kycStatus: user.kycStatus,
-    documents: user.documents.map((d) => ({
-      type: d.type?.type || "id_card",
-      fileName: d.fileName,
-      filePath: d.filePath,
-      ocrData: d.ocrData,
-      uploadDate: new Date(),
-    })),
-    faceData: user.faceData,
-  });
+  // removed unused helper to silence warnings
 
   const handleComplete = async () => {
     setSubmitting(true);
-    // Replace with your API call. For now, we just log.
-    const payload = buildPayload();
-    console.log("FINAL REGISTRATION PAYLOAD", payload);
-    // Fake complete
-    setTimeout(() => {
-      setUser((u) => ({ ...u, kycStatus: "completed" }));
+    try {
+      // Call the registration API
+      const response = await authAPI.register({
+        email: user.email,
+        password: user.password,
+        birthDate: user.birthDate,
+        residency: user.residency,
+      });
+
+      if (response.success) {
+        // Store user data and token
+        storage.setUser(response.user);
+        storage.setToken(response.token);
+        
+        // Update local state
+        setUser((u) => ({ ...u, kycStatus: "completed" }));
+        
+        // Show success message
+        alert("Registration successful! You can now login.");
+        
+        // Redirect to login page
+        navigate('/login');
+      } else {
+        alert("Registration failed: " + response.message);
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      alert("Registration failed: " + error.message);
+    } finally {
       setSubmitting(false);
-      alert("Registration Complete (demo) – check console for payload");
-    }, 400);
+    }
   };
 
   // --- UI ---
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      {/* Top Nav */}
-      <div className="w-full border-b bg-white/80 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto flex items-center justify-between py-3 px-4">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold">Digital ID System</span>
-             <Link to="/">
-            <span className="px-3 py-1 rounded-full text-sm bg-indigo-50 text-indigo-700 flex items-center gap-1">
-              <span className="inline-block w-4 h-4 rounded-full bg-indigo-600" />
-              Registration
-            </span>
-            </Link>
-            <Link to="/login" className="text-indigo-600 font-semibold">Login</Link>
-            <a className="text-slate-500 hover:text-slate-700 text-sm" href="#">Dashboard</a>
-            <a className="text-slate-500 hover:text-slate-700 text-sm" href="#">Voting</a>
-          </div>
-          <div className="text-sm text-slate-500 flex items-center gap-3">
-            <span>
-              Role: <span className="font-medium text-slate-700">User</span>
-            </span>
-            <button className="px-3 py-1 text-slate-700 border rounded-full hover:bg-slate-100">
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-50 text-slate-800 animate-fade-in no-scrollbar" style={{ height: '100vh', overflowY: 'auto' }}>
+      <NavBar />
 
       {/* Header */}
-      <div className="max-w-5xl mx-auto px-4 pt-10">
+      <div className="max-w-5xl mx-auto px-4 pt-10 animate-fade-up">
         <h1 className="text-3xl md:text-4xl font-semibold text-center">
           {stepTitle}
         </h1>
@@ -288,21 +336,41 @@ export default function RegistrationFlow() {
 
       {/* Card */}
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-sm border p-6 md:p-8">
+        <div className="bg-white rounded-2xl shadow-sm border p-6 md:p-8 animate-fade-up w-full max-w-md mx-auto">
+          <div key={step} className="animate-fade-up">
           {step === 1 && (
-            <Step1Basic
+             <Step1Basic
+               user={user}
+               setUser={setUser}
+               canNext={canNextFromStep1}
+               errors={errors}
+               onNext={() => {
+                 if (validateStep1()) {
+                   setUser((u) => ({ ...u, kycStatus: "pending" }));
+                   goNext();
+                 }
+               }}
+             />
+           )}
+
+          {step === 2 && (
+            <Step2Password
               user={user}
               setUser={setUser}
-              canNext={canNextFromStep1}
+              onBack={goBack}
+              errors={errors}
               onNext={() => {
-                setUser((u) => ({ ...u, kycStatus: "pending" }));
-                goNext();
+                if (validateStep2()) {
+                  setUser((u) => ({ ...u, kycStatus: "password_set" }));
+                  goNext();
+                }
               }}
+              canNext={canNextFromStep2}
             />
           )}
 
-          {step === 2 && (
-            <Step2Document
+          {step === 3 && (
+            <Step3Document
               docPreviewName={docPreviewName}
               setDocPreviewName={setDocPreviewName}
               docBase64={docBase64}
@@ -314,12 +382,12 @@ export default function RegistrationFlow() {
                 setUser((u) => ({ ...u, kycStatus: "document_uploaded" }));
                 goNext();
               }}
-              canNext={canNextFromStep2}
+              canNext={canNextFromStep3}
             />
           )}
 
-          {step === 3 && (
-            <Step3Liveness
+          {step === 4 && (
+            <Step4Liveness
               onBack={goBack}
               onNext={() => {
                 setUser((u) => ({ ...u, kycStatus: "liveness_verified" }));
@@ -333,18 +401,19 @@ export default function RegistrationFlow() {
               usingCamera={usingCamera}
               videoRef={videoRef}
               canvasRef={canvasRef}
-              canNext={canNextFromStep3}
+              canNext={canNextFromStep4}
             />
           )}
 
-          {step === 4 && (
-            <Step4Confirmation
+          {step === 5 && (
+            <Step5Confirmation
               user={user}
               onBack={goBack}
               onComplete={handleComplete}
               submitting={submitting}
             />
           )}
+          </div>
         </div>
       </div>
     </div>
@@ -353,7 +422,40 @@ export default function RegistrationFlow() {
 
 // --- Step components ---
 
-function Step1Basic({ user, setUser, onNext, canNext }) {
+function Step1Basic({ user, setUser, onNext, canNext, errors }) {
+  const [dobInput, setDobInput] = useState("");
+
+  useEffect(() => {
+    if (user.birthDate) {
+      const d = new Date(user.birthDate);
+      if (!isNaN(d)) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        setDobInput(`${dd}-${mm}-${yyyy}`);
+      }
+    }
+  }, [user.birthDate]);
+
+  const handleDobChange = (val) => {
+    // Keep as dd-mm-yyyy
+    const cleaned = val.replace(/[^0-9-]/g, "").slice(0, 10);
+    let next = cleaned;
+    if (cleaned.length === 2 || cleaned.length === 5) {
+      if (!cleaned.endsWith("-")) next = cleaned + "-";
+    }
+    setDobInput(next);
+
+    const parts = next.split("-");
+    if (parts.length === 3 && parts[2]?.length === 4) {
+      const [dd, mm, yyyy] = parts.map((p) => parseInt(p, 10));
+      if (dd && mm && yyyy) {
+        const iso = new Date(yyyy, mm - 1, dd).toISOString();
+        setUser((u) => ({ ...u, birthDate: iso }));
+      }
+    }
+  };
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-center">Basic Details</h2>
@@ -366,26 +468,42 @@ function Step1Basic({ user, setUser, onNext, canNext }) {
             value={user.email}
             onChange={(e) => setUser((u) => ({ ...u, email: e.target.value }))}
             placeholder="Email Address"
-            className="mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={cx(
+              "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
+              errors.email ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
+            )}
           />
+          {errors.email && (
+            <p className="mt-1 text-xs text-red-500">{errors.email}</p>
+          )}
         </div>
 
         <div>
           <label className="text-sm text-slate-600">Date of Birth</label>
           <input
-            type="date"
-            value={formatInputDateValue(user.birthDate)}
-            onChange={(e) => setUser((u) => ({ ...u, birthDate: e.target.value }))}
-            placeholder="dd/mm/yyyy"
-            className="mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            type="text"
+            inputMode="numeric"
+            value={dobInput}
+            onChange={(e) => handleDobChange(e.target.value)}
+            placeholder="dd-mm-yyyy"
+            className={cx(
+              "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
+              errors.birthDate ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
+            )}
           />
+          {errors.birthDate && (
+            <p className="mt-1 text-xs text-red-500">{errors.birthDate}</p>
+          )}
         </div>
 
         <div>
           <label className="text-sm text-slate-600">Select Residency</label>
           <div className="relative mt-2">
             <select
-              className="w-full appearance-none rounded-xl border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className={cx(
+                "w-full appearance-none rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
+                errors.residency ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
+              )}
               value={user.residency}
               onChange={(e) => setUser((u) => ({ ...u, residency: e.target.value }))}
             >
@@ -400,6 +518,9 @@ function Step1Basic({ user, setUser, onNext, canNext }) {
             </select>
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
           </div>
+          {errors.residency && (
+            <p className="mt-1 text-xs text-red-500">{errors.residency}</p>
+          )}
         </div>
       </div>
 
@@ -408,7 +529,7 @@ function Step1Basic({ user, setUser, onNext, canNext }) {
           onClick={onNext}
           disabled={!canNext}
           className={cx(
-            "w-full rounded-xl px-4 py-3 text-white", 
+            "w-full rounded-xl px-4 py-3 text-white",
             canNext ? "bg-indigo-600 hover:bg-indigo-700" : "bg-indigo-300 cursor-not-allowed"
           )}
         >
@@ -419,17 +540,72 @@ function Step1Basic({ user, setUser, onNext, canNext }) {
   );
 }
 
-function formatInputDateValue(val) {
-  if (!val) return "";
-  const d = new Date(val);
-  if (Number.isNaN(d.getTime())) return val;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+function Step2Password({ user, setUser, onBack, onNext, canNext, errors }) {
+  return (
+    <div>
+      <h2 className="text-xl font-semibold text-center">Password Setup</h2>
+
+      <div className="mt-6 space-y-4">
+        <div>
+          <label className="text-sm text-slate-600">Password</label>
+          <input
+            type="password"
+            value={user.password}
+            onChange={(e) => setUser((u) => ({ ...u, password: e.target.value }))}
+            placeholder="Enter your password"
+            className={cx(
+              "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
+              errors.password ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
+            )}
+          />
+          {errors.password ? (
+            <p className="mt-1 text-xs text-red-500">{errors.password}</p>
+          ) : (
+            <p className="mt-1 text-xs text-slate-500">Password must be at least 6 characters long with uppercase, lowercase, and number</p>
+          )}
+        </div>
+
+        <div>
+          <label className="text-sm text-slate-600">Confirm Password</label>
+          <input
+            type="password"
+            value={user.confirmPassword}
+            onChange={(e) => setUser((u) => ({ ...u, confirmPassword: e.target.value }))}
+            placeholder="Confirm your password"
+            className={cx(
+              "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
+              errors.confirmPassword ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
+            )}
+          />
+          {errors.confirmPassword && (
+            <p className="mt-1 text-xs text-red-500">{errors.confirmPassword}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6 flex gap-3">
+        <button
+          onClick={onBack}
+          className="flex-1 rounded-xl border px-4 py-3 text-slate-700 hover:bg-slate-50"
+        >
+          Back
+        </button>
+        <button
+          onClick={onNext}
+          disabled={!canNext}
+          className={cx(
+            "flex-1 rounded-xl px-4 py-3 text-white", 
+            canNext ? "bg-indigo-600 hover:bg-indigo-700" : "bg-indigo-300 cursor-not-allowed"
+          )}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
 }
 
-function Step2Document({
+function Step3Document({
   docPreviewName,
   setDocPreviewName,
   docBase64,
@@ -529,7 +705,7 @@ function Step2Document({
   );
 }
 
-function Step3Liveness({
+function Step4Liveness({
   onBack,
   onNext,
   startCamera,
@@ -606,7 +782,7 @@ function Step3Liveness({
   );
 }
 
-function Step4Confirmation({ user, onBack, onComplete, submitting }) {
+function Step5Confirmation({ user, onBack, onComplete, submitting }) {
   const success = user.faceData.faceMatched;
 
   return (
@@ -618,7 +794,7 @@ function Step4Confirmation({ user, onBack, onComplete, submitting }) {
           <p className="text-sm text-slate-600 mb-2">ID Photo</p>
           <div className="aspect-[4/3] rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden">
             {user.faceData.idFaceImage ? (
-              <img src={user.faceData.idFaceImage} alt="ID Document Photo" className="w-full h-full object-cover" />
+              <img src={user.faceData.idFaceImage} alt="ID" className="w-full h-full object-cover rounded-xl" />
             ) : (
               <div className="text-slate-400 text-3xl">📷 ID Document Photo</div>
             )}
@@ -628,7 +804,7 @@ function Step4Confirmation({ user, onBack, onComplete, submitting }) {
           <p className="text-sm text-slate-600 mb-2">Live Capture</p>
           <div className="aspect-[4/3] rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden">
             {user.faceData.liveFaceImage ? (
-              <img src={user.faceData.liveFaceImage} alt="Live Photo" className="w-full h-full object-cover" />
+              <img src={user.faceData.liveFaceImage} alt="Live" className="w-full h-full object-cover rounded-xl" />
             ) : (
               <div className="text-slate-400 text-3xl">📷 Your Live Photo</div>
             )}

@@ -1,0 +1,31 @@
+{
+  "architecture": "vit_small_patch16_224",
+  "classifier": "head",
+  "crop_mode": "center",
+  "crop_pct": 1.0,
+  "custom_load": false,
+  "export_model_type": "vit_small_patch16_224",
+  "first_conv": "patch_embed.proj",
+  "fixed_input_size": true,
+  "hf_hub_id": "gaunernst/vit_small_patch8_gap_112.cosface_ms1mv3",
+  "input_size": [
+    3,
+    112,
+    112
+  ],
+  "interpolation": "bicubic",
+  "mean": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "num_classes": 512,
+  "pool_size": null,
+  "source": "hf-hub",
+  "std": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "transformers_version": "4.55.4"
+}

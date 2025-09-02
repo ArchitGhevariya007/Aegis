@@ -36,3 +36,26 @@
     transform: rotate(360deg);
   }
 }
+
+/* Simple, reusable animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-up {
+  animation: fadeUp 320ms ease-out both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 240ms ease-out both;
+}
+
+/* Hide native scrollbars while keeping scroll */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
