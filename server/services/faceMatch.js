@@ -21,7 +21,7 @@ function findArcfaceModelPath() {
     if (preferred) return path.join(baseDir, preferred);
   }
   // Fallback single model path
-  return path.resolve(__dirname, '../ai_models/arcface.onnx');
+  return path.resolve(__dirname, '../ai_models/model.onnx');
 }
 
 const ENV_MODEL = process.env.FACE_MODEL_PATH ? resolveFromServer(process.env.FACE_MODEL_PATH) : null;
