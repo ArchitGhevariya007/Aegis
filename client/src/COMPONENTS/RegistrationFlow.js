@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+// eslint-disable-next-line
 import { authAPI, storage } from "../services/api";
 import NavBar from "./NavBar";
 /**
@@ -186,7 +187,7 @@ export default function RegistrationFlow() {
     setCameraReady(false);
   };
 
-  const captureSnapshot = () => {
+  const captureSnapshot = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     const v = videoRef.current;
     const c = canvasRef.current;
@@ -195,9 +196,12 @@ export default function RegistrationFlow() {
     const ctx = c.getContext("2d");
     ctx.drawImage(v, 0, 0, c.width, c.height);
     const data = c.toDataURL("image/png");
+    
+    // Always set the image, with or without face detection
+    const croppedFace = await detectAndCropFace(data);
     setUser((u) => ({
       ...u,
-      faceData: { ...u.faceData, liveFaceImage: data, livenessVerified: true },
+      faceData: { ...u.faceData, liveFaceImage: croppedFace, livenessVerified: true },
     }));
   };
 
@@ -213,15 +217,47 @@ export default function RegistrationFlow() {
     }
   }, [step, user.faceData.idFaceImage, user.faceData.liveFaceImage]);
 
-  // Handle doc upload -> preview + fake OCR fill-in
+  // Face detection using server-side SCRFD
+  async function detectAndCropFace(base64) {
+    try {
+      console.log('Sending face detection request...');
+      const response = await fetch('http://localhost:5000/api/ai/detect-faces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 })
+      });
+      
+      const result = await response.json();
+      console.log('Face detection response:', result);
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Face detection failed');
+      }
+      
+      if (result.faces.length === 0) {
+        throw new Error('No faces detected in image');
+      }
+      
+      return result.croppedFace; // Server returns the cropped face
+    } catch (error) {
+      console.error('Face detection error:', error);
+      // Return the original image as fallback
+      return base64;
+    }
+  }
+
+  // Handle doc upload -> preview + face detection
   const handleDocChange = async (file) => {
     if (!file) return;
     setDocPreviewName(file.name);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target.result;
       setDocBase64(base64);
-      // Extract a mock portrait crop placeholder as idFaceImage (for demo)
+      
+      // Always set the image, with or without face detection
+      const croppedFace = await detectAndCropFace(base64);
+      
       setUser((u) => ({
         ...u,
         documents: [
@@ -237,7 +273,7 @@ export default function RegistrationFlow() {
             },
           },
         ],
-        faceData: { ...u.faceData, idFaceImage: base64 },
+        faceData: { ...u.faceData, idFaceImage: croppedFace },
       }));
 
       // Fill OCR editable fields (demo)
@@ -267,19 +303,25 @@ export default function RegistrationFlow() {
   const handleComplete = async () => {
     setSubmitting(true);
     try {
-      // Call the registration API
+      console.log('Registration data:', {
+        email: user.email,
+        hasIdImage: !!user.faceData.idFaceImage,
+        hasLiveImage: !!user.faceData.liveFaceImage,
+        idImageLength: user.faceData.idFaceImage?.length || 0,
+        liveImageLength: user.faceData.liveFaceImage?.length || 0
+      });
+
+      // Call the registration API with face images
       const response = await authAPI.register({
         email: user.email,
         password: user.password,
         birthDate: user.birthDate,
         residency: user.residency,
+        idFaceImage: user.faceData.idFaceImage,
+        liveFaceImage: user.faceData.liveFaceImage,
       });
 
       if (response.success) {
-        // Store user data and token
-        storage.setUser(response.user);
-        storage.setToken(response.token);
-        
         // Update local state
         setUser((u) => ({ ...u, kycStatus: "completed" }));
         

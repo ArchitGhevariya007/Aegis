@@ -7,6 +7,7 @@ const {
   validateLogin, 
   validateFaceVerification 
 } = require('../middleware/validation');
+const facePipeline = require('../services/facePipeline');
 
 const router = express.Router();
 
@@ -22,7 +23,15 @@ const generateToken = (userId) => {
 // POST /api/auth/register
 router.post('/register', validateRegistration, async (req, res) => {
   try {
-    const { email, password, birthDate, residency } = req.body;
+    const { email, password, birthDate, residency, idFaceImage, liveFaceImage } = req.body;
+
+    console.log('Registration request received:', {
+      email,
+      hasIdFaceImage: !!idFaceImage,
+      hasLiveFaceImage: !!liveFaceImage,
+      idFaceImageLength: idFaceImage?.length || 0,
+      liveFaceImageLength: liveFaceImage?.length || 0
+    });
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -33,12 +42,46 @@ router.post('/register', validateRegistration, async (req, res) => {
       });
     }
 
-    // Create new user
+    // Verify faces using new pipeline
+    if (!idFaceImage || !liveFaceImage) {
+      console.log('Missing face images:', { idFaceImage: !!idFaceImage, liveFaceImage: !!liveFaceImage });
+      return res.status(400).json({
+        success: false,
+        message: 'Both ID face image and live face image are required'
+      });
+    }
+
+    const faceComparison = await facePipeline.compareFaceImages(idFaceImage, liveFaceImage);
+    
+    if (!faceComparison.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Face verification failed: ' + faceComparison.error
+      });
+    }
+
+    if (!faceComparison.is_match) {
+      return res.status(400).json({
+        success: false,
+        message: `Face did not match document photo. Similarity: ${(faceComparison.similarity * 100).toFixed(1)}%`,
+        similarity: faceComparison.similarity
+      });
+    }
+
+    // Create new user with verified face data
     const user = new User({
       email,
       password,
       birthDate: new Date(birthDate),
-      residency
+      residency,
+      kycStatus: 'completed',
+      isActive: true,
+      faceData: {
+        idFaceImage: faceComparison.idCroppedFace,
+        liveFaceImage: faceComparison.liveCroppedFace,
+        livenessVerified: true,
+        faceMatched: true
+      }
     });
 
     await user.save();
@@ -46,7 +89,11 @@ router.post('/register', validateRegistration, async (req, res) => {
     res.status(201).json({
       success: true,
       userId: user._id,
-      message: 'User registered successfully'
+      message: 'User registered successfully',
+      faceMatch: {
+        similarity: faceComparison.similarity,
+        verified: true
+      }
     });
   } catch (error) {
     console.error('Registration error:', error);

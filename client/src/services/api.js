@@ -36,6 +36,8 @@ export const authAPI = {
         password: userData.password,
         birthDate: userData.birthDate,
         residency: userData.residency,
+        idFaceImage: userData.idFaceImage,
+        liveFaceImage: userData.liveFaceImage,
       }),
     });
   },

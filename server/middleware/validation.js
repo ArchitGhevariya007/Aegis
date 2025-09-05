@@ -29,6 +29,12 @@ const validateRegistration = [
   body('residency')
     .isLength({ min: 2, max: 100 })
     .withMessage('Residency must be between 2 and 100 characters'),
+  body('idFaceImage')
+    .notEmpty()
+    .withMessage('ID face image is required'),
+  body('liveFaceImage')
+    .notEmpty()
+    .withMessage('Live face image is required'),
   handleValidationErrors
 ];
 
