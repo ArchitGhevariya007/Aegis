@@ -43,7 +43,11 @@ async function processImageForFaces(base64) {
 
 async function compareFaceImages(idImage, liveImage) {
   try {
-    // Process both images
+    if (process.env.FACE_MATCH_DEBUG === 'true') {
+      console.log('[Pipeline] Starting face comparison pipeline...');
+    }
+    
+    // Process both images to detect and crop faces
     const idResult = await processImageForFaces(idImage);
     const liveResult = await processImageForFaces(liveImage);
     
@@ -55,21 +59,31 @@ async function compareFaceImages(idImage, liveImage) {
       throw new Error('Failed to process live image: ' + liveResult.error);
     }
     
-    // Compare embeddings
-    const comparison = await faceRecognition.compareFaces(idImage, liveImage);
+    // Compare the cropped faces using ArcFace
+    const comparison = await faceRecognition.compareFaces(
+      idResult.croppedFace, 
+      liveResult.croppedFace
+    );
+    
+    if (process.env.FACE_MATCH_DEBUG === 'true') {
+      console.log(`[Pipeline] Final result: similarity=${comparison.similarity.toFixed(6)}, match=${comparison.is_match}`);
+    }
     
     return {
       success: true,
       similarity: comparison.similarity,
       is_match: comparison.is_match,
+      threshold: comparison.threshold,
       idFaces: idResult.faces.length,
       liveFaces: liveResult.faces.length,
       idCroppedFace: idResult.croppedFace,
       liveCroppedFace: liveResult.croppedFace,
       debug: {
-        idEmbedding: idResult.embedding,
-        liveEmbedding: liveResult.embedding,
-        embeddingLength: idResult.embeddingLength
+        idEmbedding: comparison.embedding1,
+        liveEmbedding: comparison.embedding2,
+        embeddingLength: idResult.embeddingLength,
+        idFaceBox: idResult.faces[0],
+        liveFaceBox: liveResult.faces[0]
       }
     };
   } catch (error) {

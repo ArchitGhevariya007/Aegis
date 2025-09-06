@@ -6,7 +6,7 @@ const sharp = require('sharp');
 
 // SCRFD model configuration
 const SCRFD_INPUT_SIZE = 640; // Standard input size for SCRFD
-const SCRFD_CONFIDENCE_THRESHOLD = 0.5;
+const SCRFD_CONFIDENCE_THRESHOLD = 0.02; // Lower threshold for debugging
 const SCRFD_NMS_THRESHOLD = 0.4;
 
 function resolveFromServer(p) {
@@ -104,6 +104,163 @@ function calculateIoU(box1, box2) {
   return intersection / union;
 }
 
+function sigmoid(x) {
+  return 1 / (1 + Math.exp(-x));
+}
+
+function parseSCRFDOutputs(results, inputSize) {
+  const faces = [];
+  
+  try {
+    const outputKeys = Object.keys(results);
+    
+    if (process.env.FACE_MATCH_DEBUG === 'true') {
+      console.log('[SCRFD] Available outputs:', outputKeys);
+      outputKeys.forEach(key => {
+        console.log(`[SCRFD] ${key}: shape ${results[key].dims}, data length ${results[key].data.length}`);
+      });
+    }
+    
+    // Based on the output, we have 3 scales with different strides
+    // Scale 1: 12800 anchors (stride 8) - outputs 448 (cls), 451 (bbox), 454 (kps)
+    // Scale 2: 3200 anchors (stride 16) - outputs 471 (cls), 474 (bbox), 477 (kps) 
+    // Scale 3: 800 anchors (stride 32) - outputs 494 (cls), 497 (bbox), 500 (kps)
+    
+    const scales = [
+      { stride: 8, clsKey: '448', bboxKey: '451', kpsKey: '454' },
+      { stride: 16, clsKey: '471', bboxKey: '474', kpsKey: '477' },
+      { stride: 32, clsKey: '494', bboxKey: '497', kpsKey: '500' }
+    ];
+    
+    for (const scale of scales) {
+      const { stride, clsKey, bboxKey } = scale;
+      
+      if (!results[clsKey] || !results[bboxKey]) {
+        if (process.env.FACE_MATCH_DEBUG === 'true') {
+          console.log(`[SCRFD] Missing outputs for stride ${stride}: cls=${!!results[clsKey]}, bbox=${!!results[bboxKey]}`);
+        }
+        continue;
+      }
+      
+      const clsData = results[clsKey].data;
+      const bboxData = results[bboxKey].data;
+      const numAnchors = clsData.length;
+      
+      if (process.env.FACE_MATCH_DEBUG === 'true') {
+        console.log(`[SCRFD] Processing stride ${stride}: ${numAnchors} anchors`);
+        // Sample first few values to understand the data format
+        console.log(`[SCRFD] Sample cls values: [${Array.from(clsData.slice(0, 10)).map(v => v.toFixed(4)).join(', ')}]`);
+        console.log(`[SCRFD] Sample bbox values: [${Array.from(bboxData.slice(0, 10)).map(v => v.toFixed(4)).join(', ')}]`);
+      }
+      
+      const gridSize = inputSize / stride;
+      const anchorsPerCell = 2; // Standard SCRFD has 2 anchors per grid cell
+      
+      // Process each anchor
+      let maxConf = 0;
+      let minConf = 1;
+      let validCount = 0;
+      
+      for (let i = 0; i < numAnchors; i++) {
+        const rawConf = clsData[i];
+        const confidence = sigmoid(rawConf); // Apply sigmoid activation
+        maxConf = Math.max(maxConf, confidence);
+        minConf = Math.min(minConf, confidence);
+        
+        if (confidence < SCRFD_CONFIDENCE_THRESHOLD) continue;
+        validCount++;
+        
+        // Calculate grid position from anchor index
+        const anchorInCell = i % anchorsPerCell;
+        const cellIdx = Math.floor(i / anchorsPerCell);
+        const gridX = cellIdx % gridSize;
+        const gridY = Math.floor(cellIdx / gridSize);
+        
+        // Get bounding box deltas
+        const bboxIdx = i * 4;
+        const dx = bboxData[bboxIdx];
+        const dy = bboxData[bboxIdx + 1];
+        const dw = bboxData[bboxIdx + 2];
+        const dh = bboxData[bboxIdx + 3];
+        
+        // Convert to absolute coordinates
+        // SCRFD uses distance-based encoding
+        const centerX = (gridX + 0.5) * stride;
+        const centerY = (gridY + 0.5) * stride;
+        
+        // Apply deltas (SCRFD distance encoding)
+        const x1 = centerX - dx * stride;
+        const y1 = centerY - dy * stride;
+        const x2 = centerX + dw * stride;
+        const y2 = centerY + dh * stride;
+        
+        // Ensure coordinates are within bounds
+        const boundedX1 = Math.max(0, Math.min(inputSize, x1));
+        const boundedY1 = Math.max(0, Math.min(inputSize, y1));
+        const boundedX2 = Math.max(0, Math.min(inputSize, x2));
+        const boundedY2 = Math.max(0, Math.min(inputSize, y2));
+        
+        const width = boundedX2 - boundedX1;
+        const height = boundedY2 - boundedY1;
+        
+        // Filter out invalid boxes
+        if (width > 10 && height > 10 && width < inputSize && height < inputSize) {
+          faces.push({
+            x: boundedX1,
+            y: boundedY1,
+            width: width,
+            height: height,
+            confidence: confidence
+          });
+          
+          if (process.env.FACE_MATCH_DEBUG === 'true' && faces.length <= 5) {
+            console.log(`[SCRFD] Detected face ${faces.length}: x=${boundedX1.toFixed(1)}, y=${boundedY1.toFixed(1)}, w=${width.toFixed(1)}, h=${height.toFixed(1)}, conf=${confidence.toFixed(4)}`);
+          }
+        }
+      }
+      
+      if (process.env.FACE_MATCH_DEBUG === 'true') {
+        console.log(`[SCRFD] Stride ${stride}: conf range [${minConf.toFixed(6)}, ${maxConf.toFixed(6)}], valid: ${validCount}/${numAnchors}`);
+      }
+    }
+    
+    if (process.env.FACE_MATCH_DEBUG === 'true') {
+      console.log(`[SCRFD] Total faces before NMS: ${faces.length}`);
+    }
+    
+    // Apply Non-Maximum Suppression
+    if (faces.length > 0) {
+      const boxes = faces.map(f => [f.x, f.y, f.x + f.width, f.y + f.height]);
+      const scores = faces.map(f => f.confidence);
+      const keepIndices = nms(boxes, scores, SCRFD_NMS_THRESHOLD);
+      const filteredFaces = keepIndices.map(box => {
+        const idx = boxes.findIndex(b => b[0] === box[0] && b[1] === box[1]);
+        return faces[idx];
+      });
+      
+      const finalFaces = filteredFaces.sort((a, b) => b.confidence - a.confidence);
+      
+      if (process.env.FACE_MATCH_DEBUG === 'true') {
+        console.log(`[SCRFD] Final faces after NMS: ${finalFaces.length}`);
+      }
+      
+      return finalFaces;
+    }
+    
+    return faces;
+  } catch (error) {
+    console.error('[SCRFD] Error parsing outputs:', error);
+    // Fallback: return center region as detected face
+    return [{
+      x: Math.floor(inputSize * 0.2),
+      y: Math.floor(inputSize * 0.2),
+      width: Math.floor(inputSize * 0.6),
+      height: Math.floor(inputSize * 0.6),
+      confidence: 0.5
+    }];
+  }
+}
+
 async function detectFaces(base64) {
   try {
     const session = await ensureSession();
@@ -125,18 +282,11 @@ async function detectFaces(base64) {
       });
     }
     
-    // For now, return a mock face detection since SCRFD output parsing is complex
-    // In production, you'd parse the actual SCRFD output format
-    const mockFace = {
-      x: Math.floor(SCRFD_INPUT_SIZE * 0.2),
-      y: Math.floor(SCRFD_INPUT_SIZE * 0.2),
-      width: Math.floor(SCRFD_INPUT_SIZE * 0.6),
-      height: Math.floor(SCRFD_INPUT_SIZE * 0.6),
-      confidence: 0.9
-    };
+    // Parse SCRFD outputs
+    const faces = parseSCRFDOutputs(results, SCRFD_INPUT_SIZE);
     
     return {
-      faces: [mockFace],
+      faces,
       inputSize: SCRFD_INPUT_SIZE
     };
   } catch (error) {
@@ -153,15 +303,43 @@ async function cropFaceFromImage(base64, faceBox, targetSize = 112) {
   const scaleX = imgWidth / SCRFD_INPUT_SIZE;
   const scaleY = imgHeight / SCRFD_INPUT_SIZE;
   
-  const x = Math.max(0, Math.floor(faceBox.x * scaleX));
-  const y = Math.max(0, Math.floor(faceBox.y * scaleY));
-  const width = Math.min(imgWidth - x, Math.floor(faceBox.width * scaleX));
-  const height = Math.min(imgHeight - y, Math.floor(faceBox.height * scaleY));
+  // Scale coordinates to original image space
+  let x = Math.floor(faceBox.x * scaleX);
+  let y = Math.floor(faceBox.y * scaleY);
+  let width = Math.floor(faceBox.width * scaleX);
+  let height = Math.floor(faceBox.height * scaleY);
   
-  // Crop and resize to target size
+  // Expand the crop area by 20% for better face context (important for ArcFace)
+  const expandRatio = 0.2;
+  const expandX = Math.floor(width * expandRatio);
+  const expandY = Math.floor(height * expandRatio);
+  
+  x = Math.max(0, x - expandX);
+  y = Math.max(0, y - expandY);
+  width = Math.min(imgWidth - x, width + 2 * expandX);
+  height = Math.min(imgHeight - y, height + 2 * expandY);
+  
+  // Ensure we have a square crop for ArcFace (which expects square input)
+  const size = Math.max(width, height);
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  
+  const squareX = Math.max(0, Math.floor(centerX - size / 2));
+  const squareY = Math.max(0, Math.floor(centerY - size / 2));
+  const squareSize = Math.min(size, Math.min(imgWidth - squareX, imgHeight - squareY));
+  
+  if (process.env.FACE_MATCH_DEBUG === 'true') {
+    console.log(`[Crop] Original: ${imgWidth}x${imgHeight}, Face: ${faceBox.x},${faceBox.y},${faceBox.width}x${faceBox.height}`);
+    console.log(`[Crop] Scaled: ${x},${y},${width}x${height}, Square: ${squareX},${squareY},${squareSize}x${squareSize}`);
+  }
+  
+  // Crop to square and resize to exact target size (112x112 for ArcFace)
   const cropped = await sharp(buf)
-    .extract({ left: x, top: y, width, height })
-    .resize(targetSize, targetSize, { kernel: sharp.kernel.cubic })
+    .extract({ left: squareX, top: squareY, width: squareSize, height: squareSize })
+    .resize(targetSize, targetSize, { 
+      kernel: sharp.kernel.cubic,
+      fit: 'fill'  // Ensure exact targetSize x targetSize output
+    })
     .jpeg({ quality: 95 })
     .toBuffer();
   

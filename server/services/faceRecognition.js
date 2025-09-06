@@ -38,6 +38,8 @@ async function ensureSession() {
 
 async function preprocessToTensor(session, base64) {
   const buf = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+  
+  // Resize to exact ArcFace input size: 112x112 RGB
   const rgb = await sharp(buf)
     .resize(ARC_W, ARC_H, { kernel: sharp.kernel.cubic })
     .removeAlpha()
@@ -50,30 +52,8 @@ async function preprocessToTensor(session, base64) {
     floatArray[i] = (rgb[i] - 127.5) / 128.0;
   }
 
-  // Determine model input layout by inspecting first input dims
-  const inputName = session.inputNames && session.inputNames.length ? session.inputNames[0] : 'input';
-  const meta = session.inputMetadata && session.inputMetadata[inputName];
-  const dims = meta && Array.isArray(meta.dimensions) ? meta.dimensions : null;
-  const inferredNCHW = dims && dims.length === 4 && (dims[1] === 3 || dims[1] === '3');
-  
-  // Default to NHWC unless model expects NCHW
-  const isNCHW = process.env.FACE_INPUT_LAYOUT === 'NCHW' || inferredNCHW;
-
-  if (isNCHW) {
-    // Convert NHWC to NCHW
-    const chw = new Float32Array(ARC_C * ARC_H * ARC_W);
-    for (let h = 0; h < ARC_H; h++) {
-      for (let w = 0; w < ARC_W; w++) {
-        const nhwcIdx = (h * ARC_W + w) * ARC_C;
-        chw[0 * ARC_H * ARC_W + h * ARC_W + w] = floatArray[nhwcIdx + 0]; // R
-        chw[1 * ARC_H * ARC_W + h * ARC_W + w] = floatArray[nhwcIdx + 1]; // G
-        chw[2 * ARC_H * ARC_W + h * ARC_W + w] = floatArray[nhwcIdx + 2]; // B
-      }
-    }
-    return new ort.Tensor('float32', chw, [1, ARC_C, ARC_H, ARC_W]);
-  }
-
-  // Default NHWC
+  // ArcFace expects NHWC format: (1, 112, 112, 3)
+  // This matches the specification: (batch, height, width, channels)
   return new ort.Tensor('float32', floatArray, [1, ARC_H, ARC_W, ARC_C]);
 }
 
@@ -99,15 +79,30 @@ async function extractEmbedding(base64) {
     const input = await preprocessToTensor(session, base64);
     const inputName = session.inputNames && session.inputNames.length ? session.inputNames[0] : 'input';
     
+    if (process.env.FACE_MATCH_DEBUG === 'true') {
+      console.log(`[ArcFace] Input shape: ${input.dims}, Input name: ${inputName}`);
+    }
+    
     const results = await session.run({ [inputName]: input });
     const outName = session.outputNames && session.outputNames.length ? session.outputNames[0] : Object.keys(results)[0];
     const output = results[outName];
     
+    if (process.env.FACE_MATCH_DEBUG === 'true') {
+      console.log(`[ArcFace] Output shape: ${output.dims}, Output name: ${outName}`);
+    }
+    
+    // Convert output to Float32Array and ensure it's 512-dimensional
     const arr = output.data instanceof Float32Array ? output.data : Float32Array.from(output.data);
+    
+    if (arr.length !== EMBEDDING_DIM) {
+      console.warn(`[ArcFace] Warning: Expected ${EMBEDDING_DIM} dimensions, got ${arr.length}`);
+    }
+    
+    // L2 normalize the embedding
     const normalized = l2normalize(arr);
     
     if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log(`[ArcFace] Embedding dimension: ${normalized.length}, expected: ${EMBEDDING_DIM}`);
+      console.log(`[ArcFace] Embedding dimension: ${normalized.length}, norm: ${Math.sqrt(normalized.reduce((sum, val) => sum + val * val, 0)).toFixed(6)}`);
     }
     
     return normalized;
@@ -119,24 +114,36 @@ async function extractEmbedding(base64) {
 
 async function compareFaces(idImage, liveImage) {
   try {
+    if (process.env.FACE_MATCH_DEBUG === 'true') {
+      console.log('[ArcFace] Starting face comparison...');
+    }
+    
     const [embedding1, embedding2] = await Promise.all([
       extractEmbedding(idImage),
       extractEmbedding(liveImage)
     ]);
     
+    // Ensure both embeddings are valid
+    if (!embedding1 || !embedding2 || embedding1.length !== embedding2.length) {
+      throw new Error(`Invalid embeddings: ${embedding1?.length} vs ${embedding2?.length}`);
+    }
+    
     const similarity = cosineSimilarity(embedding1, embedding2);
-    const threshold = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.6');
+    const threshold = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.6'); // Default threshold as per your spec
     const safeSimilarity = Number.isFinite(similarity) ? similarity : -1;
     
     if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log(`[ArcFace] Similarity: ${safeSimilarity.toFixed(4)}, Threshold: ${threshold}, Match: ${safeSimilarity >= threshold}`);
+      console.log(`[ArcFace] Embedding1 sample: [${embedding1.slice(0, 5).map(v => v.toFixed(4)).join(', ')}...]`);
+      console.log(`[ArcFace] Embedding2 sample: [${embedding2.slice(0, 5).map(v => v.toFixed(4)).join(', ')}...]`);
+      console.log(`[ArcFace] Similarity: ${safeSimilarity.toFixed(6)}, Threshold: ${threshold}, Match: ${safeSimilarity >= threshold}`);
     }
     
     return { 
       similarity: safeSimilarity, 
       is_match: safeSimilarity >= threshold,
       embedding1: embedding1.slice(0, 10), // Return first 10 dims for debugging
-      embedding2: embedding2.slice(0, 10)
+      embedding2: embedding2.slice(0, 10),
+      threshold: threshold
     };
   } catch (error) {
     console.error('Face comparison error:', error);
