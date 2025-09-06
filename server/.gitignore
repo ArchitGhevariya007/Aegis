@@ -81,3 +81,6 @@ Thumbs.db
 tmp/
 temp/
 
+
+# AI models
+ai_models\onnx_model\arcface.onnx
