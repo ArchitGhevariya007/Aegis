@@ -1,2 +1,7 @@
 /client/node_modules
 /server/node_modules
+
+
+
+# AI models
+server\ai_models\onnx_model\arcface.onnx
