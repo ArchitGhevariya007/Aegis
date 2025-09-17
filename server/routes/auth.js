@@ -1,5 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const { 
@@ -7,6 +9,7 @@ const {
   validateLogin, 
   validateFaceVerification 
 } = require('../middleware/validation');
+const { uploadIdDocument, handleUploadError } = require('../middleware/upload');
 const facePipeline = require('../services/facePipeline');
 
 const router = express.Router();
@@ -24,6 +27,8 @@ const generateToken = (userId) => {
 router.post('/register', validateRegistration, async (req, res) => {
   try {
     const { email, password, birthDate, residency, idFaceImage, liveFaceImage } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
 
     console.log('Registration request received:', {
       email,
@@ -36,6 +41,9 @@ router.post('/register', validateRegistration, async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      // Log failed registration attempt for existing user
+      await existingUser.logAccess('registration', false, ipAddress, userAgent, 'Email already exists');
+      
       return res.status(400).json({
         success: false,
         message: 'User with this email already exists'
@@ -81,10 +89,32 @@ router.post('/register', validateRegistration, async (req, res) => {
         liveFaceImage: faceComparison.liveCroppedFace,
         livenessVerified: true,
         faceMatched: true
+      },
+      documents: [
+        {
+          type: 'id_face',
+          fileName: 'id_face_image.jpg',
+          filePath: faceComparison.idCroppedFace,
+          verified: true
+        },
+        {
+          type: 'live_face',
+          fileName: 'live_face_capture.jpg',
+          filePath: faceComparison.liveCroppedFace,
+          verified: true
+        }
+      ],
+      verificationStatus: {
+        documentAuthenticity: true,
+        faceMatch: true,
+        livenessCheck: true
       }
     });
 
     await user.save();
+
+    // Log successful registration
+    await user.logAccess('registration', true, ipAddress, userAgent);
 
     res.status(201).json({
       success: true,
@@ -108,10 +138,14 @@ router.post('/register', validateRegistration, async (req, res) => {
 router.post('/login', validateLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
 
     // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
+      // For security, we don't want to reveal if the email exists or not
+      // So we just log a generic failed login attempt
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -120,6 +154,8 @@ router.post('/login', validateLogin, async (req, res) => {
 
     // Check if account is locked
     if (user.isLocked()) {
+      await user.logAccess('login', false, ipAddress, userAgent, 'Account locked');
+      
       return res.status(423).json({
         success: false,
         message: 'Account is temporarily locked due to multiple failed login attempts. Please try again later.'
@@ -129,8 +165,9 @@ router.post('/login', validateLogin, async (req, res) => {
     // Verify password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      // Increment login attempts
+      // Increment login attempts and log failed attempt
       await user.incLoginAttempts();
+      await user.logAccess('login', false, ipAddress, userAgent, 'Invalid password');
       
       return res.status(401).json({
         success: false,
@@ -144,6 +181,9 @@ router.post('/login', validateLogin, async (req, res) => {
     // Update last login
     user.lastLogin = new Date();
     await user.save();
+
+    // Log successful login
+    await user.logAccess('login', true, ipAddress, userAgent);
 
     // Generate JWT token
     const token = generateToken(user._id);
@@ -235,7 +275,8 @@ router.get('/profile', auth, async (req, res) => {
         birthDate: req.user.birthDate,
         residency: req.user.residency,
         kycStatus: req.user.kycStatus,
-        lastLogin: req.user.lastLogin
+        lastLogin: req.user.lastLogin,
+        createdAt: req.user.createdAt
       }
     });
   } catch (error) {
@@ -243,6 +284,442 @@ router.get('/profile', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch profile'
+    });
+  }
+});
+
+// GET /api/auth/user-documents
+router.get('/user-documents', auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      documents: req.user.documents || []
+    });
+  } catch (error) {
+    console.error('Documents fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch documents'
+    });
+  }
+});
+
+// GET /api/auth/access-logs
+router.get('/access-logs', auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      logs: req.user.accessLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)) || []
+    });
+  } catch (error) {
+    console.error('Access logs fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch access logs'
+    });
+  }
+});
+
+// GET /api/auth/verification-status
+router.get('/verification-status', auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      status: req.user.verificationStatus || {
+        documentAuthenticity: false,
+        faceMatch: false,
+        livenessCheck: false
+      }
+    });
+  } catch (error) {
+    console.error('Verification status fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch verification status'
+    });
+  }
+});
+
+// GET /api/auth/blockchain-id
+router.get('/blockchain-id', auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      ...req.user.blockchainData
+    });
+  } catch (error) {
+    console.error('Blockchain data fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch blockchain data'
+    });
+  }
+});
+
+// GET /api/auth/notification-settings
+router.get('/notification-settings', auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      settings: req.user.notificationSettings || {
+        emailNotifications: true,
+        smsNotifications: false,
+        pushNotifications: true
+      }
+    });
+  } catch (error) {
+    console.error('Notification settings fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notification settings'
+    });
+  }
+});
+
+// PUT /api/auth/notification-settings
+router.put('/notification-settings', auth, async (req, res) => {
+  try {
+    const { settings } = req.body;
+    
+    req.user.notificationSettings = {
+      ...req.user.notificationSettings,
+      ...settings
+    };
+    
+    await req.user.save();
+    
+    res.json({
+      success: true,
+      message: 'Notification settings updated successfully'
+    });
+  } catch (error) {
+    console.error('Notification settings update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update notification settings'
+    });
+  }
+});
+
+// GET /api/auth/permissions
+router.get('/permissions', auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      permissions: req.user.dataPermissions || {
+        name: true,
+        dob: true,
+        address: false,
+        health: false,
+        tax: false
+      }
+    });
+  } catch (error) {
+    console.error('Permissions fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch permissions'
+    });
+  }
+});
+
+// PUT /api/auth/permissions
+router.put('/permissions', auth, async (req, res) => {
+  try {
+    const { permissions } = req.body;
+    
+    req.user.dataPermissions = {
+      ...req.user.dataPermissions,
+      ...permissions
+    };
+    
+    await req.user.save();
+    
+    res.json({
+      success: true,
+      message: 'Permissions updated successfully'
+    });
+  } catch (error) {
+    console.error('Permissions update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update permissions'
+    });
+  }
+});
+
+// GET /api/auth/connected-services
+router.get('/connected-services', auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      services: req.user.connectedServices || []
+    });
+  } catch (error) {
+    console.error('Connected services fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch connected services'
+    });
+  }
+});
+
+// POST /api/auth/upload-document
+router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const newDocument = {
+      type: 'additional',
+      fileName: req.file.originalname,
+      filePath: req.file.path,
+      uploadDate: new Date(),
+      verified: false // Will be verified by admin or automatic process
+    };
+
+    req.user.documents.push(newDocument);
+    await req.user.save();
+
+    // Log document upload activity
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
+    await req.user.logAccess('data_access', true, ipAddress, userAgent);
+
+    res.json({
+      success: true,
+      message: 'Document uploaded successfully',
+      document: {
+        id: req.user.documents[req.user.documents.length - 1]._id,
+        fileName: newDocument.fileName,
+        uploadDate: newDocument.uploadDate
+      }
+    });
+  } catch (error) {
+    console.error('Document upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload document'
+    });
+  }
+});
+
+// GET /api/auth/download-document/:documentId
+router.get('/download-document/:documentId', auth, async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const document = req.user.documents.id(documentId);
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    // For base64 stored images (from registration)
+    if (document.filePath && document.filePath.startsWith('data:image')) {
+      const base64Data = document.filePath.split(',')[1];
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.send(buffer);
+      return;
+    }
+
+    // For file system stored documents
+    if (document.filePath && fs.existsSync(document.filePath)) {
+      res.download(document.filePath, document.fileName);
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'Document file not found on server'
+      });
+    }
+  } catch (error) {
+    console.error('Document download error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to download document'
+    });
+  }
+});
+
+// GET /api/auth/view-document/:documentId
+router.get('/view-document/:documentId', auth, async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const document = req.user.documents.id(documentId);
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    // For base64 stored images (from registration)
+    if (document.filePath && document.filePath.startsWith('data:image')) {
+      const base64Data = document.filePath.split(',')[1];
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.send(buffer);
+      return;
+    }
+
+    // For file system stored documents
+    if (document.filePath && fs.existsSync(document.filePath)) {
+      const ext = path.extname(document.fileName).toLowerCase();
+      let contentType = 'application/octet-stream';
+      
+      if (['.jpg', '.jpeg'].includes(ext)) contentType = 'image/jpeg';
+      else if (ext === '.png') contentType = 'image/png';
+      else if (ext === '.pdf') contentType = 'application/pdf';
+      
+      res.setHeader('Content-Type', contentType);
+      res.sendFile(path.resolve(document.filePath));
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'Document file not found on server'
+      });
+    }
+  } catch (error) {
+    console.error('Document view error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to view document'
+    });
+  }
+});
+
+// POST /api/auth/download-digital-id
+router.get('/download-digital-id', auth, async (req, res) => {
+  try {
+    // Check if user has completed KYC
+    if (req.user.kycStatus !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Digital ID not available. Please complete KYC first.'
+      });
+    }
+
+    // Generate a simple digital ID document (in a real app, this would be more sophisticated)
+    const digitalIdData = {
+      name: req.user.email.split('@')[0],
+      email: req.user.email,
+      birthDate: req.user.birthDate,
+      residency: req.user.residency,
+      kycStatus: req.user.kycStatus,
+      verificationStatus: req.user.verificationStatus,
+      issuedAt: new Date().toISOString(),
+      digitalSignature: 'DIGITAL_ID_' + req.user._id
+    };
+
+    res.setHeader('Content-Disposition', 'attachment; filename="digital-id.json"');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(digitalIdData, null, 2));
+  } catch (error) {
+    console.error('Digital ID download error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate digital ID'
+    });
+  }
+});
+
+// POST /api/auth/generate-share-link
+router.post('/generate-share-link', auth, async (req, res) => {
+  try {
+    // Check if user has completed KYC
+    if (req.user.kycStatus !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Digital ID not available for sharing. Please complete KYC first.'
+      });
+    }
+
+    // Generate a temporary share link (expires in 1 hour)
+    const shareToken = jwt.sign(
+      { 
+        userId: req.user._id,
+        type: 'share_link',
+        exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour
+      },
+      process.env.JWT_SECRET
+    );
+
+    const shareLink = `${req.protocol}://${req.get('host')}/api/auth/verify-shared-id/${shareToken}`;
+
+    res.json({
+      success: true,
+      shareLink: shareLink,
+      expiresIn: '1 hour'
+    });
+  } catch (error) {
+    console.error('Share link generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate share link'
+    });
+  }
+});
+
+// GET /api/auth/verify-shared-id/:token
+router.get('/verify-shared-id/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    if (decoded.type !== 'share_link') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid share link'
+      });
+    }
+
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      verificationData: {
+        verified: user.kycStatus === 'completed',
+        verificationStatus: user.verificationStatus,
+        issuedAt: user.createdAt,
+        kycStatus: user.kycStatus
+      }
+    });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid share link'
+      });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Share link has expired'
+      });
+    }
+    
+    console.error('Share link verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify share link'
     });
   }
 });

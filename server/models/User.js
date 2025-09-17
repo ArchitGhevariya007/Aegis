@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema({
   documents: [{
     type: {
       type: String,
-      enum: ['id_card', 'passport', 'drivers_license']
+      enum: ['id_document', 'id_face', 'live_face', 'id_card', 'passport', 'drivers_license', 'additional']
     },
     fileName: String,
     filePath: String,
@@ -38,11 +38,16 @@ const userSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     },
+    verified: {
+      type: Boolean,
+      default: false
+    },
     ocrData: {
       name: String,
       dob: Date,
       idNumber: String,
-      documentType: String
+      documentType: String,
+      address: String
     }
   }],
   faceData: {
@@ -71,6 +76,102 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  accessLogs: [{
+    action: {
+      type: String,
+      enum: ['login', 'registration', 'logout', 'password_change', 'data_access'],
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    ipAddress: String,
+    userAgent: String,
+    success: {
+      type: Boolean,
+      required: true
+    },
+    failureReason: String,
+    location: {
+      country: String,
+      city: String,
+      region: String
+    }
+  }],
+  notificationSettings: {
+    emailNotifications: {
+      type: Boolean,
+      default: true
+    },
+    smsNotifications: {
+      type: Boolean,
+      default: false
+    },
+    pushNotifications: {
+      type: Boolean,
+      default: true
+    }
+  },
+  dataPermissions: {
+    name: {
+      type: Boolean,
+      default: true
+    },
+    dob: {
+      type: Boolean,
+      default: true
+    },
+    address: {
+      type: Boolean,
+      default: false
+    },
+    health: {
+      type: Boolean,
+      default: false
+    },
+    tax: {
+      type: Boolean,
+      default: false
+    }
+  },
+  connectedServices: [{
+    serviceId: String,
+    serviceName: String,
+    permissions: [String],
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'pending'],
+      default: 'pending'
+    },
+    connectedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  blockchainData: {
+    idHash: String,
+    blockReference: String,
+    lastUpdated: Date,
+    verified: {
+      type: Boolean,
+      default: false
+    }
+  },
+  verificationStatus: {
+    documentAuthenticity: {
+      type: Boolean,
+      default: false
+    },
+    faceMatch: {
+      type: Boolean,
+      default: false
+    },
+    livenessCheck: {
+      type: Boolean,
+      default: false
+    }
   }
 }, {
   timestamps: true
@@ -124,6 +225,26 @@ userSchema.methods.resetLoginAttempts = function() {
   return this.updateOne({
     $unset: { loginAttempts: 1, lockUntil: 1 }
   });
+};
+
+// Method to log access attempt
+userSchema.methods.logAccess = function(action, success, ipAddress, userAgent, failureReason = null) {
+  const accessLog = {
+    action,
+    success,
+    ipAddress,
+    userAgent,
+    failureReason
+  };
+  
+  this.accessLogs.push(accessLog);
+  
+  // Keep only last 100 access logs to prevent document from growing too large
+  if (this.accessLogs.length > 100) {
+    this.accessLogs = this.accessLogs.slice(-100);
+  }
+  
+  return this.save();
 };
 
 module.exports = mongoose.model('User', userSchema);

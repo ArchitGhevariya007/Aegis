@@ -437,7 +437,6 @@ export default function RegistrationFlow() {
                 goNext();
               }}
               startCamera={startCamera}
-              stopCamera={stopCamera}
               captureSnapshot={captureSnapshot}
               cameraReady={cameraReady}
               usingCamera={usingCamera}
@@ -751,7 +750,6 @@ function Step4Liveness({
   onBack,
   onNext,
   startCamera,
-  stopCamera,
   captureSnapshot,
   cameraReady,
   usingCamera,
@@ -763,29 +761,21 @@ function Step4Liveness({
     <div>
       <h2 className="text-xl font-semibold text-center">Facial Capture & Liveness Check</h2>
 
-      <div className="mt-6 rounded-2xl bg-slate-900 text-slate-100 p-6">
-        <div className="mx-auto max-w-xl rounded-xl bg-slate-800 p-4">
+      <div className="mt-6 rounded-2xl bg-slate-100 text-slate-800 p-6 border">
+        <div className="mx-auto max-w-xl rounded-xl bg-white p-4 border">
           <div className="flex items-center justify-center mb-3 text-2xl">📷</div>
-          <p className="text-center text-sm text-slate-300 mb-3">
+          <p className="text-center text-sm text-slate-600 mb-3">
             Position your face in the camera
           </p>
-          <div className="rounded-lg border border-slate-700 h-64 flex items-center justify-center overflow-hidden bg-slate-900">
+          <div className="rounded-lg border border-slate-300 h-64 flex items-center justify-center overflow-hidden bg-slate-50 relative">
             <video ref={videoRef} className="h-full" />
             <canvas ref={canvasRef} className="hidden" />
             {!usingCamera && (
-              <span className="text-slate-500">Camera View</span>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-slate-400">Camera View</span>
+              </div>
             )}
           </div>
-        </div>
-
-        <div className="mt-6 rounded-xl bg-slate-800 p-4">
-          <p className="font-medium mb-3">Instructions:</p>
-          <ul className="text-sm space-y-1 text-slate-300 list-disc list-inside">
-            <li>Look directly at the camera</li>
-            <li>Turn head left slowly</li>
-            <li>Turn head right slowly</li>
-            <li>Blink naturally</li>
-          </ul>
         </div>
       </div>
 
@@ -798,26 +788,18 @@ function Step4Liveness({
             Start Camera
           </button>
         ) : (
-          <>
-            <button onClick={captureSnapshot} disabled={!cameraReady} className={cx(
-              "flex-1 min-w-[140px] rounded-xl border px-4 py-3",
-              cameraReady ? "hover:bg-slate-50" : "opacity-50 cursor-not-allowed"
-            )}>
-              Capture
-            </button>
-            <button onClick={stopCamera} className="flex-1 min-w-[140px] rounded-xl border px-4 py-3 hover:bg-slate-50">
-              Stop Camera
-            </button>
-          </>
+          <button onClick={captureSnapshot} disabled={!cameraReady} className={cx(
+            "flex-1 min-w-[140px] rounded-xl border px-4 py-3",
+            cameraReady ? "hover:bg-slate-50" : "opacity-50 cursor-not-allowed"
+          )}>
+            Capture
+          </button>
         )}
         <button onClick={onNext} disabled={!canNext} className={cx(
           "flex-1 min-w-[140px] rounded-xl px-4 py-3 text-white", 
           canNext ? "bg-indigo-600 hover:bg-indigo-700" : "bg-indigo-300 cursor-not-allowed"
         )}>
           {"Next"}
-        </button>
-        <button onClick={onNext} className="flex-1 min-w-[140px] rounded-xl bg-indigo-50 text-indigo-700 px-4 py-3">
-          <span className="mr-2">📷</span> Skip (Demo)
         </button>
       </div>
     </div>
