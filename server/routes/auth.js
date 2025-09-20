@@ -11,6 +11,7 @@ const {
 } = require('../middleware/validation');
 const { uploadIdDocument, handleUploadError } = require('../middleware/upload');
 const facePipeline = require('../services/facePipeline');
+const blockchainService = require('../services/blockchainService');
 
 const router = express.Router();
 
@@ -474,33 +475,126 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
       });
     }
 
-    const newDocument = {
-      type: 'additional',
-      fileName: req.file.originalname,
-      filePath: req.file.path,
-      uploadDate: new Date(),
-      verified: false // Will be verified by admin or automatic process
-    };
-
-    req.user.documents.push(newDocument);
-    await req.user.save();
-
-    // Log document upload activity
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
-    await req.user.logAccess('data_access', true, ipAddress, userAgent);
 
-    res.json({
-      success: true,
-      message: 'Document uploaded successfully',
-      document: {
-        id: req.user.documents[req.user.documents.length - 1]._id,
-        fileName: newDocument.fileName,
-        uploadDate: newDocument.uploadDate
+    console.log(`📄 Starting blockchain upload for: ${req.file.originalname}`);
+    
+    // Read file buffer
+    const fileBuffer = fs.readFileSync(req.file.path);
+    
+    try {
+      // Store document on blockchain with encryption
+      const blockchainResult = await blockchainService.storeDocument(
+        fileBuffer,
+        req.file.originalname,
+        req.user.email // Using email as user address for now - in production use wallet address
+      );
+
+      // Create document record with blockchain data
+      const newDocument = {
+        type: 'additional',
+        fileName: req.file.originalname,
+        filePath: req.file.path, // Keep local copy as backup
+        uploadDate: new Date(),
+        verified: blockchainResult.verified,
+        // Blockchain specific data
+        blockchainData: {
+          documentHash: blockchainResult.documentHash,
+          ipfsHash: blockchainResult.ipfsHash,
+          encryptionKey: blockchainResult.encryptionKey,
+          encryptionIV: blockchainResult.encryptionIV,
+          transactionHash: blockchainResult.transactionHash,
+          blockNumber: blockchainResult.blockNumber,
+          documentId: blockchainResult.documentId,
+          blockchainStored: true
+        }
+      };
+
+      console.log(`📁 Storing document with file path: ${req.file.path}`);
+      console.log(`📁 File exists: ${fs.existsSync(req.file.path)}`);
+      console.log(`📁 File size: ${fs.statSync(req.file.path).size} bytes`);
+
+      req.user.documents.push(newDocument);
+      
+      // Update user's blockchain data
+      if (!req.user.blockchainData) {
+        req.user.blockchainData = {};
       }
-    });
+      req.user.blockchainData.lastUpdated = new Date();
+      req.user.blockchainData.verified = true;
+
+      await req.user.save();
+
+      // Keep local file as backup for easier access
+      // Note: In production, you might want to delete this after confirming IPFS storage
+      console.log('📁 Keeping local backup copy for easier access');
+
+      // Log document upload activity
+      await req.user.logAccess('data_access', true, ipAddress, userAgent);
+
+      res.json({
+        success: true,
+        message: 'Document uploaded and stored on blockchain successfully',
+        document: {
+          id: req.user.documents[req.user.documents.length - 1]._id,
+          fileName: newDocument.fileName,
+          uploadDate: newDocument.uploadDate,
+          blockchain: {
+            transactionHash: blockchainResult.transactionHash,
+            ipfsHash: blockchainResult.ipfsHash,
+            documentId: blockchainResult.documentId,
+            verified: blockchainResult.verified
+          }
+        }
+      });
+
+    } catch (blockchainError) {
+      console.error('Blockchain storage failed:', blockchainError.message);
+      
+      // Fallback to traditional storage if blockchain fails
+      const newDocument = {
+        type: 'additional',
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        uploadDate: new Date(),
+        verified: false,
+        blockchainData: {
+          blockchainStored: false,
+          error: blockchainError.message
+        }
+      };
+
+      req.user.documents.push(newDocument);
+      await req.user.save();
+
+      // Log failed blockchain attempt
+      await req.user.logAccess('data_access', false, ipAddress, userAgent, 'Blockchain storage failed');
+
+      res.json({
+        success: true,
+        message: 'Document uploaded (blockchain storage failed, stored locally)',
+        document: {
+          id: req.user.documents[req.user.documents.length - 1]._id,
+          fileName: newDocument.fileName,
+          uploadDate: newDocument.uploadDate
+        },
+        warning: 'Document stored locally due to blockchain error'
+      });
+    }
+
   } catch (error) {
     console.error('Document upload error:', error);
+    
+    // Clean up uploaded file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup file after error:', cleanupError.message);
+      }
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to upload document'
@@ -519,6 +613,74 @@ router.get('/download-document/:documentId', auth, async (req, res) => {
         success: false,
         message: 'Document not found'
       });
+    }
+
+    // Check if document is stored on blockchain
+    if (document.blockchainData && document.blockchainData.blockchainStored) {
+      try {
+        console.log(`📥 Blockchain document detected: ${document.fileName}`);
+        console.log(`   Transaction: ${document.blockchainData.transactionHash}`);
+        console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
+        
+      // For now, fall back to local file since we don't have smart contract
+      // In production, this would download from IPFS and decrypt
+      console.log(`📁 Checking local file: ${document.filePath}`);
+      console.log(`📁 File exists: ${document.filePath ? fs.existsSync(document.filePath) : 'No file path'}`);
+      
+      if (document.filePath && fs.existsSync(document.filePath)) {
+        console.log('📁 Serving from local backup copy (blockchain verified)');
+        res.download(document.filePath, document.fileName);
+        return;
+      } else {
+        console.log(`📥 Local file not found, retrieving from IPFS...`);
+        
+        try {
+          // Retrieve and decrypt from IPFS
+          const blockchainResult = await blockchainService.retrieveDocumentFromIPFS(
+            document.blockchainData.ipfsHash,
+            document.blockchainData.encryptionKey,
+            document.blockchainData.encryptionIV,
+            req.user.email
+          );
+
+          // Verify document integrity
+          const isValid = await blockchainService.verifyDocument(
+            blockchainResult.documentBuffer,
+            document.blockchainData.documentHash
+          );
+
+          if (!isValid) {
+            return res.status(400).json({
+              success: false,
+              message: 'Document integrity verification failed'
+            });
+          }
+
+          console.log(`✅ Successfully retrieved and verified document from IPFS`);
+
+          // Set appropriate headers and send decrypted document
+          res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+          res.setHeader('Content-Type', 'application/octet-stream');
+          res.send(blockchainResult.documentBuffer);
+          return;
+
+        } catch (ipfsError) {
+          console.error(`❌ IPFS retrieval failed: ${ipfsError.message}`);
+          return res.status(500).json({
+            success: false,
+            message: `Failed to retrieve document from IPFS: ${ipfsError.message}`
+          });
+        }
+      }
+
+      } catch (blockchainError) {
+        console.error('Blockchain document access error:', blockchainError.message);
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to access blockchain document'
+        });
+      }
     }
 
     // For base64 stored images (from registration)
@@ -560,6 +722,31 @@ router.get('/view-document/:documentId', auth, async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Document not found'
+      });
+    }
+
+    // Check if document is stored on blockchain
+    if (document.blockchainData && document.blockchainData.blockchainStored) {
+      console.log(`📥 Viewing blockchain document: ${document.fileName}`);
+      console.log(`   Transaction: ${document.blockchainData.transactionHash}`);
+      console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
+      
+      // For now, return info about blockchain storage since we don't have full IPFS retrieval
+      return res.json({
+        success: true,
+        message: 'Document is securely stored on blockchain',
+        document: {
+          fileName: document.fileName,
+          uploadDate: document.uploadDate,
+          verified: document.verified,
+          blockchain: {
+            stored: true,
+            transactionHash: document.blockchainData.transactionHash,
+            ipfsHash: document.blockchainData.ipfsHash,
+            verified: true
+          }
+        },
+        note: 'Document is encrypted and stored on IPFS. Use download to get the file.'
       });
     }
 

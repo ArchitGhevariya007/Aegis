@@ -48,6 +48,20 @@ const userSchema = new mongoose.Schema({
       idNumber: String,
       documentType: String,
       address: String
+    },
+    blockchainData: {
+      blockchainStored: {
+        type: Boolean,
+        default: false
+      },
+      documentHash: String,
+      ipfsHash: String,
+      encryptionKey: String,
+      encryptionIV: String,
+      transactionHash: String,
+      blockNumber: String,
+      documentId: String,
+      error: String
     }
   }],
   faceData: {
