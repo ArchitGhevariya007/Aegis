@@ -9,6 +9,7 @@ A secure Node.js/Express backend for the Aegis KYC (Know Your Customer) system w
 - **OCR Processing**: Document text extraction and validation
 - **Liveness Detection**: Anti-spoofing measures for face verification
 - **Face Recognition**: ID vs. live face matching
+- **Blockchain Integration**: Encrypted document storage on IPFS with Polygon blockchain verification
 - **Security Features**: Rate limiting, input validation, secure file handling
 - **MongoDB Integration**: Scalable data storage with Mongoose ODM
 
@@ -16,6 +17,12 @@ A secure Node.js/Express backend for the Aegis KYC (Know Your Customer) system w
 
 ```
 server/
+├── blockchain/              # Blockchain functionality (NEW)
+│   ├── config/             # Blockchain configuration
+│   ├── contracts/          # Smart contracts
+│   ├── scripts/            # Deployment and setup scripts
+│   ├── tests/              # Blockchain tests
+│   └── README.md           # Blockchain documentation
 ├── config/
 │   └── database.js          # MongoDB connection configuration
 ├── middleware/
@@ -73,7 +80,13 @@ server/
 
 5. **Start MongoDB service** (if running locally)
 
-6. **Run the server:**
+6. **Blockchain setup** (optional):
+   ```bash
+   npm run blockchain:setup
+   # Follow the guide in blockchain/BLOCKCHAIN_BEGINNER_GUIDE.md
+   ```
+
+7. **Run the server:**
    ```bash
    # Development mode with auto-restart
    npm run dev
@@ -81,6 +94,15 @@ server/
    # Production mode
    npm start
    ```
+
+## Available Scripts
+
+- `npm start` - Start the production server
+- `npm run dev` - Start development server with auto-reload
+- `npm run blockchain:setup` - Check blockchain configuration
+- `npm run blockchain:compile` - Compile smart contracts
+- `npm run blockchain:deploy` - Deploy smart contracts to Amoy testnet
+- `npm run blockchain:test` - Run blockchain functionality tests
 
 ## API Endpoints
 

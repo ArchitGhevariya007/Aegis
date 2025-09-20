@@ -109,7 +109,6 @@ checks.forEach(check => {
 if (process.env.BLOCKCHAIN_PRIVATE_KEY) {
     try {
         console.log('🔗 Testing blockchain connection...');
-        const { ethers } = require('ethers');
         
         const provider = new ethers.JsonRpcProvider(
             process.env.BLOCKCHAIN_RPC_URL || 'https://rpc-amoy.polygon.technology'

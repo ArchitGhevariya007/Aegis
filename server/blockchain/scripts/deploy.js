@@ -1,6 +1,10 @@
-const { ethers } = require('ethers');
-const fs = require('fs');
-const path = require('path');
+import { ethers } from 'ethers';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Deployment script for DocumentManager smart contract
@@ -36,7 +40,7 @@ async function deployContract() {
         }
         
         // Read contract source code
-        const contractPath = path.join(__dirname, 'DocumentManager.sol');
+        const contractPath = path.join(__dirname, '../contracts/DocumentManager.sol');
         if (!fs.existsSync(contractPath)) {
             throw new Error('DocumentManager.sol not found');
         }
@@ -181,7 +185,7 @@ function getContractBytecode() {
 }
 
 // Run deployment if called directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
     deployContract()
         .then((address) => {
             console.log(`\n🎉 Deployment completed! Contract address: ${address}`);
@@ -193,4 +197,4 @@ if (require.main === module) {
         });
 }
 
-module.exports = { deployContract };
+export { deployContract };
