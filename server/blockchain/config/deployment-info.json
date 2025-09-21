@@ -1,0 +1,8 @@
+{
+  "contractAddress": "0x723036c266a774814F03c820E25A8866C78d122A",
+  "transactionHash": "0xcf1ae84bb9f770047989daa03bd42ffa6dcf781f060e39196a19b78ec30ff85e",
+  "deployedAt": "2025-09-21T05:23:34.636Z",
+  "network": "amoy",
+  "deployer": "0xeE4FF2C92aD082b368E0e284cfAeDe0757DfDb1d",
+  "blockExplorer": "https://amoy.polygonscan.com/tx/0xcf1ae84bb9f770047989daa03bd42ffa6dcf781f060e39196a19b78ec30ff85e"
+}

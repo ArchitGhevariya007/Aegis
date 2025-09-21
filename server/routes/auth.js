@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const { 
@@ -478,7 +479,13 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
 
-    console.log(`📄 Starting blockchain upload for: ${req.file.originalname}`);
+    // Use custom name if provided, otherwise use original filename
+    const customName = req.body.customName;
+    const finalFileName = customName && customName.trim() ? 
+      customName.trim() : 
+      req.file.originalname;
+
+    console.log(`📄 Starting blockchain upload for: ${finalFileName} (original: ${req.file.originalname})`);
     
     // Read file buffer
     const fileBuffer = fs.readFileSync(req.file.path);
@@ -487,14 +494,14 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
       // Store document on blockchain with encryption
       const blockchainResult = await blockchainService.storeDocument(
         fileBuffer,
-        req.file.originalname,
+        finalFileName,
         req.user.email // Using email as user address for now - in production use wallet address
       );
 
       // Create document record with blockchain data
       const newDocument = {
         type: 'additional',
-        fileName: req.file.originalname,
+        fileName: finalFileName,
         filePath: req.file.path, // Keep local copy as backup
         uploadDate: new Date(),
         verified: blockchainResult.verified,
@@ -907,6 +914,111 @@ router.get('/verify-shared-id/:token', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to verify share link'
+    });
+  }
+});
+
+// Delete document
+router.delete('/delete-document/:documentId', auth, async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const user = req.user;
+
+    // Find the document to delete
+    const documentIndex = user.documents.findIndex(doc => doc._id.toString() === documentId);
+    if (documentIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    const document = user.documents[documentIndex];
+    console.log(`🗑️ Deleting document: ${document.fileName}`);
+
+    // Delete from local storage if exists
+    if (document.filePath && fs.existsSync(document.filePath)) {
+      try {
+        fs.unlinkSync(document.filePath);
+        console.log(`✅ Deleted local file: ${document.filePath}`);
+      } catch (fileError) {
+        console.warn(`⚠️ Could not delete local file: ${fileError.message}`);
+      }
+    }
+
+    // Delete from Pinata IPFS if stored on blockchain
+    if (document.blockchainData?.ipfsHash) {
+      try {
+        console.log(`🗑️ Attempting to unpin from Pinata: ${document.blockchainData.ipfsHash}`);
+        
+        // First, check if the file exists on Pinata
+        try {
+          const checkResponse = await axios.get(`https://api.pinata.cloud/data/pinList?hashContains=${document.blockchainData.ipfsHash}`, {
+            headers: {
+              'pinata_api_key': process.env.PINATA_API_KEY,
+              'pinata_secret_api_key': process.env.PINATA_SECRET_KEY
+            }
+          });
+          
+          if (checkResponse.data.count === 0) {
+            console.log(`ℹ️ File not found on Pinata (may already be unpinned): ${document.blockchainData.ipfsHash}`);
+            return;
+          }
+          
+          console.log(`📋 Found ${checkResponse.data.count} file(s) on Pinata for hash: ${document.blockchainData.ipfsHash}`);
+        } catch (checkError) {
+          console.warn(`⚠️ Could not check Pinata status: ${checkError.message}`);
+        }
+        
+        // Proceed with unpinning
+        const response = await axios.delete(`https://api.pinata.cloud/pinning/unpin/${document.blockchainData.ipfsHash}`, {
+          headers: {
+            'pinata_api_key': process.env.PINATA_API_KEY,
+            'pinata_secret_api_key': process.env.PINATA_SECRET_KEY
+          }
+        });
+        
+        if (response.status === 200) {
+          console.log(`✅ Successfully unpinned from Pinata: ${document.blockchainData.ipfsHash}`);
+        } else {
+          console.warn(`⚠️ Unexpected response from Pinata: ${response.status} - ${response.statusText}`);
+        }
+      } catch (pinataError) {
+        console.error(`❌ Pinata unpin error for ${document.blockchainData.ipfsHash}:`, {
+          message: pinataError.message,
+          status: pinataError.response?.status,
+          statusText: pinataError.response?.statusText,
+          data: pinataError.response?.data
+        });
+        
+        // If it's a 404, the file might already be unpinned
+        if (pinataError.response?.status === 404) {
+          console.log(`ℹ️ File not found on Pinata (already unpinned): ${document.blockchainData.ipfsHash}`);
+        }
+      }
+    }
+
+    // Remove from user's documents array
+    user.documents.splice(documentIndex, 1);
+    await user.save();
+
+    console.log(`✅ Document deleted successfully: ${document.fileName}`);
+
+    res.json({
+      success: true,
+      message: 'Document deleted successfully',
+      deletedDocument: {
+        id: documentId,
+        fileName: document.fileName,
+        blockchainStored: !!document.blockchainData?.blockchainStored
+      }
+    });
+
+  } catch (error) {
+    console.error('Document deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete document'
     });
   }
 });

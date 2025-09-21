@@ -305,6 +305,16 @@ class BlockchainService {
         }
     }
     
+    // Convert user identifier to blockchain address format
+    convertUserToAddress(userIdentifier) {
+        // Convert email or user ID to a deterministic address format
+        // This creates a pseudo-address from the user identifier for smart contract compatibility
+        const hash = crypto.createHash('sha256').update(userIdentifier).digest();
+        // Take first 20 bytes and format as Ethereum address
+        const addressBytes = hash.slice(0, 20);
+        return '0x' + addressBytes.toString('hex');
+    }
+    
     // Store document on blockchain (with fallback for no contract)
     async storeDocumentOnBlockchain(documentHash, ipfsHash, encryptionKey, userAddress) {
         try {
@@ -334,19 +344,23 @@ class BlockchainService {
                 };
             }
             
-            // Smart contract mode
+            // Smart contract mode - convert user identifier to address format
+            const blockchainAddress = this.convertUserToAddress(userAddress);
+            console.log(`📄 Using smart contract for document storage`);
+            console.log(`   User: ${userAddress} → Address: ${blockchainAddress}`);
+            
             const gasEstimate = await this.contract.storeDocument.estimateGas(
                 documentHash,
                 ipfsHash,
                 encryptionKey,
-                userAddress
+                blockchainAddress
             );
             
             const transaction = await this.contract.storeDocument(
                 documentHash,
                 ipfsHash,
                 encryptionKey,
-                userAddress,
+                blockchainAddress,
                 {
                     gasLimit: gasEstimate * 120n / 100n, // Add 20% buffer
                     gasPrice: ethers.parseUnits('30', 'gwei')
@@ -356,6 +370,8 @@ class BlockchainService {
             const receipt = await transaction.wait();
             const event = receipt.logs?.find(log => log.fragment?.name === 'DocumentStored');
             const documentId = event?.args?.documentId;
+            
+            console.log(`✅ Document stored on blockchain via smart contract: ${receipt.hash}`);
             
             return {
                 transactionHash: receipt.hash,

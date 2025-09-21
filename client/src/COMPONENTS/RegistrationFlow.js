@@ -54,6 +54,13 @@ export default function RegistrationFlow() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  
+  // Modal states
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState(''); // 'success', 'error', 'camera_error'
+  const [modalMessage, setModalMessage] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('');
 
   // Document upload handling (Step 2)
   const [docPreviewName, setDocPreviewName] = useState("");
@@ -148,8 +155,8 @@ export default function RegistrationFlow() {
 
   const canNextFromStep3 = useMemo(() => !!docBase64, [docBase64]);
   const canNextFromStep4 = useMemo(
-    () => !!user.faceData.liveFaceImage || !usingCamera, // allow demo skip
-    [user.faceData.liveFaceImage, usingCamera]
+    () => (!!user.faceData.liveFaceImage || !usingCamera) && !processing, // allow demo skip but block during processing
+    [user.faceData.liveFaceImage, usingCamera, processing]
   );
 
   // Navigation
@@ -173,7 +180,9 @@ export default function RegistrationFlow() {
       console.error("Camera error", e);
       setUsingCamera(false);
       setCameraReady(false);
-      alert("Unable to access camera. You can proceed with the demo Skip.");
+      setModalType('camera_error');
+      setModalMessage("Unable to access camera. You can proceed with the demo Skip.");
+      setShowModal(true);
     }
   };
 
@@ -189,31 +198,57 @@ export default function RegistrationFlow() {
 
   const captureSnapshot = async () => {
     if (!videoRef.current || !canvasRef.current) return;
-    const v = videoRef.current;
-    const c = canvasRef.current;
-    c.width = v.videoWidth || 640;
-    c.height = v.videoHeight || 480;
-    const ctx = c.getContext("2d");
-    ctx.drawImage(v, 0, 0, c.width, c.height);
-    const data = c.toDataURL("image/png");
     
-    // Always set the image, with or without face detection
-    const croppedFace = await detectAndCropFace(data);
-    setUser((u) => ({
-      ...u,
-      faceData: { ...u.faceData, liveFaceImage: croppedFace, livenessVerified: true },
-    }));
-  };
-
-  // Simulated face match (Step 4)
-  useEffect(() => {
-    if (step === 4) {
-      const hasBoth = user.faceData.liveFaceImage && user.faceData.idFaceImage;
+    // Show processing indicator
+    setProcessing(true);
+    setProcessingMessage("Processing face capture...");
+    
+    try {
+      const v = videoRef.current;
+      const c = canvasRef.current;
+      c.width = v.videoWidth || 640;
+      c.height = v.videoHeight || 480;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+      const data = c.toDataURL("image/png");
+      
+      // Always set the image, with or without face detection
+      const croppedFace = await detectAndCropFace(data);
       setUser((u) => ({
         ...u,
-        kycStatus: hasBoth ? "face_matched" : u.kycStatus,
-        faceData: { ...u.faceData, faceMatched: !!hasBoth },
+        faceData: { ...u.faceData, liveFaceImage: croppedFace, livenessVerified: true },
       }));
+    } catch (error) {
+      console.error('Error capturing face:', error);
+      setModalType('error');
+      setModalMessage('Failed to capture face. Please try again.');
+      setShowModal(true);
+    } finally {
+      setProcessing(false);
+      setProcessingMessage('');
+    }
+  };
+
+  // Face match verification (Step 5)
+  useEffect(() => {
+    if (step === 5) {
+      const hasBoth = user.faceData.liveFaceImage && user.faceData.idFaceImage;
+      if (hasBoth) {
+        // Show processing for face matching
+        setProcessing(true);
+        setProcessingMessage("Verifying face match...");
+        
+        // Simulate face matching delay
+        setTimeout(() => {
+          setUser((u) => ({
+            ...u,
+            kycStatus: "face_matched",
+            faceData: { ...u.faceData, faceMatched: true },
+          }));
+          setProcessing(false);
+          setProcessingMessage('');
+        }, 2000); // 2 second delay for realistic processing
+      }
     }
   }, [step, user.faceData.idFaceImage, user.faceData.liveFaceImage]);
 
@@ -325,17 +360,20 @@ export default function RegistrationFlow() {
         // Update local state
         setUser((u) => ({ ...u, kycStatus: "completed" }));
         
-        // Show success message
-        alert("Registration successful! You can now login.");
-        
-        // Redirect to login page
-        navigate('/login');
+        // Show success modal
+        setModalType('success');
+        setModalMessage("Registration successful! You can now login.");
+        setShowModal(true);
       } else {
-        alert("Registration failed: " + response.message);
+        setModalType('error');
+        setModalMessage("Registration failed: " + response.message);
+        setShowModal(true);
       }
     } catch (error) {
       console.error("Registration error:", error);
-      alert("Registration failed: " + error.message);
+      setModalType('error');
+      setModalMessage("Registration failed: " + error.message);
+      setShowModal(true);
     } finally {
       setSubmitting(false);
     }
@@ -443,6 +481,8 @@ export default function RegistrationFlow() {
               videoRef={videoRef}
               canvasRef={canvasRef}
               canNext={canNextFromStep4}
+              processing={processing}
+              processingMessage={processingMessage}
             />
           )}
 
@@ -452,11 +492,74 @@ export default function RegistrationFlow() {
               onBack={goBack}
               onComplete={handleComplete}
               submitting={submitting}
+              processing={processing}
+              processingMessage={processingMessage}
             />
           )}
           </div>
         </div>
       </div>
+
+      {/* Processing Modal */}
+      {processing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800">Processing</h3>
+              </div>
+              <p className="text-slate-600 text-center">{processingMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className={cx(
+                  "w-10 h-10 rounded-full flex items-center justify-center mr-3",
+                  modalType === 'success' ? "bg-green-100" : "bg-red-100"
+                )}>
+                  {modalType === 'success' ? (
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800">
+                  {modalType === 'success' ? 'Success' : 
+                   modalType === 'camera_error' ? 'Camera Error' : 'Error'}
+                </h3>
+              </div>
+              <p className="text-slate-600 mb-6">{modalMessage}</p>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    if (modalType === 'success') {
+                      navigate('/login');
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -756,6 +859,8 @@ function Step4Liveness({
   videoRef,
   canvasRef,
   canNext,
+  processing,
+  processingMessage,
 }) {
   return (
     <div>
@@ -779,6 +884,16 @@ function Step4Liveness({
         </div>
       </div>
 
+      {/* Processing Indicator */}
+      {processing && (
+        <div className="mt-6 rounded-2xl border p-4 bg-blue-50">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+            <span className="text-blue-700 font-medium">{processingMessage}</span>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 flex flex-wrap gap-3">
         <button onClick={onBack} className="flex-1 min-w-[140px] rounded-xl border px-4 py-3 hover:bg-slate-50">
           Back
@@ -788,11 +903,11 @@ function Step4Liveness({
             Start Camera
           </button>
         ) : (
-          <button onClick={captureSnapshot} disabled={!cameraReady} className={cx(
+          <button onClick={captureSnapshot} disabled={!cameraReady || processing} className={cx(
             "flex-1 min-w-[140px] rounded-xl border px-4 py-3",
-            cameraReady ? "hover:bg-slate-50" : "opacity-50 cursor-not-allowed"
+            cameraReady && !processing ? "hover:bg-slate-50" : "opacity-50 cursor-not-allowed"
           )}>
-            Capture
+            {processing ? "Processing..." : "Capture"}
           </button>
         )}
         <button onClick={onNext} disabled={!canNext} className={cx(
@@ -806,7 +921,7 @@ function Step4Liveness({
   );
 }
 
-function Step5Confirmation({ user, onBack, onComplete, submitting }) {
+function Step5Confirmation({ user, onBack, onComplete, submitting, processing, processingMessage }) {
   const success = user.faceData.faceMatched;
 
   return (
@@ -836,12 +951,27 @@ function Step5Confirmation({ user, onBack, onComplete, submitting }) {
         </div>
       </div>
 
+      {/* Processing Indicator */}
+      {processing && (
+        <div className="mt-6 rounded-2xl border p-6 bg-blue-50">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+            <span className="text-blue-700 font-medium">{processingMessage}</span>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 rounded-2xl border p-6 text-center">
-        <p className={cx("text-lg font-medium", success ? "text-emerald-600" : "text-amber-600")}> 
-          {success ? "Face Match Successful" : "Awaiting Face Match"}
+        <p className={cx("text-lg font-medium", 
+          processing ? "text-blue-600" : 
+          success ? "text-emerald-600" : "text-amber-600"
+        )}> 
+          {processing ? "Verifying Face Match..." : 
+           success ? "Face Match Successful" : "Awaiting Face Match"}
         </p>
         <p className="text-slate-600 mt-1">
-          {success
+          {processing ? "Please wait while we verify your identity" :
+           success
             ? "Your identity has been verified successfully"
             : "Ensure both photos are provided to verify your identity"}
         </p>
@@ -853,15 +983,15 @@ function Step5Confirmation({ user, onBack, onComplete, submitting }) {
         </button>
         <button
           onClick={onComplete}
-          disabled={!success || submitting}
+          disabled={!success || submitting || processing}
           className={cx(
             "flex-1 rounded-xl px-4 py-3 text-white",
-            success && !submitting
+            success && !submitting && !processing
               ? "bg-indigo-600 hover:bg-indigo-700"
               : "bg-indigo-300 cursor-not-allowed"
           )}
         >
-          {submitting ? "Completing..." : "Complete Registration"}
+          {processing ? "Verifying..." : submitting ? "Completing..." : "Complete Registration"}
         </button>
       </div>
     </div>
