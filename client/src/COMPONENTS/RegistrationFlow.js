@@ -68,7 +68,6 @@ export default function RegistrationFlow() {
   const [ocrEditable, setOcrEditable] = useState({
     name: "",
     dob: "",
-    idNumber: "",
     documentType: "",
     address: "",
   });
@@ -281,44 +280,113 @@ export default function RegistrationFlow() {
     }
   }
 
-  // Handle doc upload -> preview + face detection
+  // Handle doc upload -> preview + OCR + face detection
   const handleDocChange = async (file) => {
     if (!file) return;
     setDocPreviewName(file.name);
+    setProcessing(true);
+    setProcessingMessage("Processing document and extracting information...");
+    
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target.result;
       setDocBase64(base64);
       
-      // Always set the image, with or without face detection
-      const croppedFace = await detectAndCropFace(base64);
-      
-      setUser((u) => ({
-        ...u,
-        documents: [
-          {
-            type: { type: "id_card" },
-            fileName: file.name,
-            filePath: "",
-            ocrData: {
-              name: ocrEditable.name || "John Doe",
-              dob: ocrEditable.dob || user.birthDate,
-              idNumber: ocrEditable.idNumber || "ID123456789",
-              documentType: ocrEditable.documentType || "id_card",
-            },
-          },
-        ],
-        faceData: { ...u.faceData, idFaceImage: croppedFace },
-      }));
+      try {
+        
+        // Process OCR extraction
+        console.log('Sending document for OCR processing...');
+        const ocrResponse = await fetch('http://localhost:5000/api/ocr/extract-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            image: base64, 
+            documentType: 'id_card' 
+          })
+        });
+        
+        const ocrResult = await ocrResponse.json();
+        console.log('OCR processing result:', ocrResult);
+        
+        // Extract face from document
+        const croppedFace = await detectAndCropFace(base64);
+        
+        // Initialize empty form data
+        let extractedData = {
+          name: "",
+          dob: "",
+          documentType: "",
+          address: "",
+        };
 
-      // Fill OCR editable fields (demo)
-      setOcrEditable((cur) => ({
-        name: cur.name || "John Doe",
-        dob: cur.dob || formatForInputDate(user.birthDate) || "1990-01-01",
-        idNumber: cur.idNumber || "ID123456789",
-        documentType: cur.documentType || "ID Card",
-        address: cur.address || "123 Main St, City, State",
-      }));
+        if (ocrResult.success && ocrResult.data && ocrResult.data.documentData) {
+          const ocrData = ocrResult.data.documentData;
+          extractedData = {
+            name: ocrData.name || "",
+            dob: ocrData.dob ? formatForInputDate(new Date(ocrData.dob)) : "",
+            documentType: "ID Card", // Default display value
+            address: ocrData.address || "",
+          };
+          
+          // Log only detected fields
+          const detectedFields = [];
+          if (ocrData.name) detectedFields.push(`Name: ${ocrData.name}`);
+          if (ocrData.dob) detectedFields.push(`DOB: ${formatForInputDate(new Date(ocrData.dob))}`);
+          if (ocrData.address) detectedFields.push(`Address: ${ocrData.address}`);
+          
+          console.log('✅ OCR detected fields:', detectedFields.length > 0 ? detectedFields : 'None');
+          console.log('📊 OCR confidence:', (ocrResult.data.confidence * 100).toFixed(1) + '%');
+        } else {
+          console.log('❌ OCR failed or no text detected, fields left empty');
+        }
+        
+        setUser((u) => ({
+          ...u,
+          documents: [
+            {
+              type: { type: "id_card" },
+              fileName: file.name,
+              filePath: "",
+              ocrData: extractedData,
+            },
+          ],
+          faceData: { ...u.faceData, idFaceImage: croppedFace },
+        }));
+
+        // Fill OCR editable fields with extracted data
+        setOcrEditable(extractedData);
+        
+      } catch (error) {
+        console.error('❌ Document processing failed:', error);
+        // Set empty data on error
+        const croppedFace = await detectAndCropFace(base64);
+        setUser((u) => ({
+          ...u,
+          documents: [
+            {
+              type: { type: "id_card" },
+              fileName: file.name,
+              filePath: "",
+            ocrData: {
+              name: "",
+              dob: "",
+              documentType: "id_card",
+            },
+            },
+          ],
+          faceData: { ...u.faceData, idFaceImage: croppedFace },
+        }));
+
+        setOcrEditable({
+          name: "",
+          dob: "",
+          documentType: "",
+          address: "",
+        });
+      } finally {
+        setProcessing(false);
+        setProcessingMessage('');
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -346,7 +414,7 @@ export default function RegistrationFlow() {
         liveImageLength: user.faceData.liveFaceImage?.length || 0
       });
 
-      // Call the registration API with face images
+      // Call the registration API with face images and OCR data
       const response = await authAPI.register({
         email: user.email,
         password: user.password,
@@ -354,6 +422,8 @@ export default function RegistrationFlow() {
         residency: user.residency,
         idFaceImage: user.faceData.idFaceImage,
         liveFaceImage: user.faceData.liveFaceImage,
+        ocrData: ocrEditable, // Include extracted OCR data
+        documentData: user.documents[0] || null // Include document information
       });
 
       if (response.success) {
@@ -808,12 +878,6 @@ function Step3Document({
             className="rounded-xl border px-4 py-3"
             value={ocrEditable.dob}
             onChange={(e) => setOcrEditable((o) => ({ ...o, dob: e.target.value }))}
-          />
-          <input
-            className="rounded-xl border px-4 py-3"
-            placeholder="ID Number"
-            value={ocrEditable.idNumber}
-            onChange={(e) => setOcrEditable((o) => ({ ...o, idNumber: e.target.value }))}
           />
           <input
             className="rounded-xl border px-4 py-3"
