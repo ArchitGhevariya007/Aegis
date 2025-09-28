@@ -45,7 +45,6 @@ const userSchema = new mongoose.Schema({
     ocrData: {
       name: String,
       dob: Date,
-      idNumber: String,
       documentType: String,
       address: String
     },

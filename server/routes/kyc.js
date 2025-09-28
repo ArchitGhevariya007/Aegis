@@ -10,6 +10,7 @@ const {
   uploadFaceImage, 
   handleUploadError 
 } = require('../middleware/upload');
+const ocrService = require('../services/ocrService');
 
 const router = express.Router();
 
@@ -41,14 +42,49 @@ router.post('/upload-id', uploadIdDocument, handleUploadError, async (req, res) 
       });
     }
 
-    // TODO: Implement actual OCR processing here
-    // For now, we'll simulate OCR data extraction
-    // In a real implementation, you would:
-    // 1. Send the uploaded file to an OCR service (e.g., Google Vision API, AWS Textract)
-    // 2. Extract relevant information (name, DOB, ID number)
-    // 3. Validate the extracted data
-    
-    const ocrData = await simulateOCRProcessing(req.file);
+    // Process document with OCR service
+    let ocrData;
+    try {
+      // Convert uploaded file to base64 for OCR processing
+      const fs = require('fs');
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const base64Image = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
+      
+      // Extract text and data using OCR service
+      const ocrResult = await ocrService.processDocument(base64Image, 'id_card');
+      
+      if (ocrResult.success && ocrResult.documentData) {
+        ocrData = {
+          name: ocrResult.documentData.name || '',
+          dob: ocrResult.documentData.dob || null,
+          documentType: 'id_card',
+          address: ocrResult.documentData.address || '',
+          extractedText: ocrResult.extractedText || '',
+          confidence: ocrResult.documentData.confidence || 0
+        };
+      } else {
+        // OCR failed, return empty data
+        console.log('[KYC] OCR processing failed, using empty data');
+        ocrData = {
+          name: '',
+          dob: null,
+          documentType: 'id_card',
+          address: '',
+          extractedText: '',
+          confidence: 0
+        };
+      }
+    } catch (error) {
+      console.error('OCR processing failed:', error);
+      ocrData = {
+        name: '',
+        dob: null,
+        documentType: 'id_card',
+        address: '',
+        extractedText: '',
+        confidence: 0
+      };
+    }
 
     // Add document to user's documents array
     const documentData = {

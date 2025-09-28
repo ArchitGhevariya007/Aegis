@@ -28,7 +28,7 @@ const generateToken = (userId) => {
 // POST /api/auth/register
 router.post('/register', validateRegistration, async (req, res) => {
   try {
-    const { email, password, birthDate, residency, idFaceImage, liveFaceImage } = req.body;
+    const { email, password, birthDate, residency, idFaceImage, liveFaceImage, ocrData, documentData } = req.body;
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
 
@@ -37,7 +37,9 @@ router.post('/register', validateRegistration, async (req, res) => {
       hasIdFaceImage: !!idFaceImage,
       hasLiveFaceImage: !!liveFaceImage,
       idFaceImageLength: idFaceImage?.length || 0,
-      liveFaceImageLength: liveFaceImage?.length || 0
+      liveFaceImageLength: liveFaceImage?.length || 0,
+      hasOcrData: !!ocrData,
+      hasDocumentData: !!documentData
     });
 
     // Check if user already exists
@@ -104,7 +106,21 @@ router.post('/register', validateRegistration, async (req, res) => {
           fileName: 'live_face_capture.jpg',
           filePath: faceComparison.liveCroppedFace,
           verified: true
-        }
+        },
+        // Add document with OCR data if provided
+        ...(documentData ? [{
+          type: documentData.type?.type || 'id_card',
+          fileName: documentData.fileName || 'uploaded_document',
+          filePath: documentData.filePath || '',
+          verified: true,
+          ocrData: ocrData ? {
+            name: ocrData.name,
+            dob: ocrData.dob ? new Date(ocrData.dob) : null,
+            idNumber: ocrData.idNumber,
+            documentType: ocrData.documentType,
+            address: ocrData.address
+          } : null
+        }] : [])
       ],
       verificationStatus: {
         documentAuthenticity: true,

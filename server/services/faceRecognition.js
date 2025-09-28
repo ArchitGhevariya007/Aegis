@@ -79,17 +79,13 @@ async function extractEmbedding(base64) {
     const input = await preprocessToTensor(session, base64);
     const inputName = session.inputNames && session.inputNames.length ? session.inputNames[0] : 'input';
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log(`[ArcFace] Input shape: ${input.dims}, Input name: ${inputName}`);
-    }
+    // Debug logging removed for cleaner console output
     
     const results = await session.run({ [inputName]: input });
     const outName = session.outputNames && session.outputNames.length ? session.outputNames[0] : Object.keys(results)[0];
     const output = results[outName];
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log(`[ArcFace] Output shape: ${output.dims}, Output name: ${outName}`);
-    }
+    // Debug logging removed for cleaner console output
     
     // Convert output to Float32Array and ensure it's 512-dimensional
     const arr = output.data instanceof Float32Array ? output.data : Float32Array.from(output.data);
@@ -101,9 +97,7 @@ async function extractEmbedding(base64) {
     // L2 normalize the embedding
     const normalized = l2normalize(arr);
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log(`[ArcFace] Embedding dimension: ${normalized.length}, norm: ${Math.sqrt(normalized.reduce((sum, val) => sum + val * val, 0)).toFixed(6)}`);
-    }
+    // Debug logging removed for cleaner console output
     
     return normalized;
   } catch (error) {
@@ -114,9 +108,7 @@ async function extractEmbedding(base64) {
 
 async function compareFaces(idImage, liveImage) {
   try {
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log('[ArcFace] Starting face comparison...');
-    }
+    // Debug logging removed for cleaner console output
     
     const [embedding1, embedding2] = await Promise.all([
       extractEmbedding(idImage),
@@ -132,11 +124,7 @@ async function compareFaces(idImage, liveImage) {
     const threshold = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.6'); // Default threshold as per your spec
     const safeSimilarity = Number.isFinite(similarity) ? similarity : -1;
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log(`[ArcFace] Embedding1 sample: [${embedding1.slice(0, 5).map(v => v.toFixed(4)).join(', ')}...]`);
-      console.log(`[ArcFace] Embedding2 sample: [${embedding2.slice(0, 5).map(v => v.toFixed(4)).join(', ')}...]`);
-      console.log(`[ArcFace] Similarity: ${safeSimilarity.toFixed(6)}, Threshold: ${threshold}, Match: ${safeSimilarity >= threshold}`);
-    }
+    // Debug logging removed for cleaner console output
     
     return { 
       similarity: safeSimilarity, 

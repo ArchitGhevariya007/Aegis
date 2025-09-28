@@ -38,7 +38,19 @@ async function ensureSession() {
 
 async function preprocessImage(base64) {
   const buf = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-  const rgb = await sharp(buf)
+  
+  let processedBuffer;
+  try {
+    // Try PNG conversion first to handle problematic JPEGs
+    processedBuffer = await sharp(buf)
+      .png({ quality: 90 })
+      .toBuffer();
+  } catch (error) {
+    console.log('[FACE] PNG conversion failed, using original buffer');
+    processedBuffer = buf;
+  }
+  
+  const rgb = await sharp(processedBuffer, { failOnError: false })
     .resize(SCRFD_INPUT_SIZE, SCRFD_INPUT_SIZE, { kernel: sharp.kernel.cubic })
     .removeAlpha()
     .raw()
@@ -114,12 +126,7 @@ function parseSCRFDOutputs(results, inputSize) {
   try {
     const outputKeys = Object.keys(results);
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log('[SCRFD] Available outputs:', outputKeys);
-      outputKeys.forEach(key => {
-        console.log(`[SCRFD] ${key}: shape ${results[key].dims}, data length ${results[key].data.length}`);
-      });
-    }
+    // Debug logging removed for cleaner console output
     
     // Based on the output, we have 3 scales with different strides
     // Scale 1: 12800 anchors (stride 8) - outputs 448 (cls), 451 (bbox), 454 (kps)
@@ -136,9 +143,7 @@ function parseSCRFDOutputs(results, inputSize) {
       const { stride, clsKey, bboxKey } = scale;
       
       if (!results[clsKey] || !results[bboxKey]) {
-        if (process.env.FACE_MATCH_DEBUG === 'true') {
-          console.log(`[SCRFD] Missing outputs for stride ${stride}: cls=${!!results[clsKey]}, bbox=${!!results[bboxKey]}`);
-        }
+        // Missing outputs for stride - silently skip
         continue;
       }
       
@@ -146,12 +151,7 @@ function parseSCRFDOutputs(results, inputSize) {
       const bboxData = results[bboxKey].data;
       const numAnchors = clsData.length;
       
-      if (process.env.FACE_MATCH_DEBUG === 'true') {
-        console.log(`[SCRFD] Processing stride ${stride}: ${numAnchors} anchors`);
-        // Sample first few values to understand the data format
-        console.log(`[SCRFD] Sample cls values: [${Array.from(clsData.slice(0, 10)).map(v => v.toFixed(4)).join(', ')}]`);
-        console.log(`[SCRFD] Sample bbox values: [${Array.from(bboxData.slice(0, 10)).map(v => v.toFixed(4)).join(', ')}]`);
-      }
+      // Processing stride data - debug logging removed
       
       const gridSize = inputSize / stride;
       const anchorsPerCell = 2; // Standard SCRFD has 2 anchors per grid cell
@@ -214,19 +214,15 @@ function parseSCRFDOutputs(results, inputSize) {
           });
           
           if (process.env.FACE_MATCH_DEBUG === 'true' && faces.length <= 5) {
-            console.log(`[SCRFD] Detected face ${faces.length}: x=${boundedX1.toFixed(1)}, y=${boundedY1.toFixed(1)}, w=${width.toFixed(1)}, h=${height.toFixed(1)}, conf=${confidence.toFixed(4)}`);
+            // console.log(`[SCRFD] Detected face ${faces.length}: x=${boundedX1.toFixed(1)}, y=${boundedY1.toFixed(1)}, w=${width.toFixed(1)}, h=${height.toFixed(1)}, conf=${confidence.toFixed(4)}`);
           }
         }
       }
       
-      if (process.env.FACE_MATCH_DEBUG === 'true') {
-        console.log(`[SCRFD] Stride ${stride}: conf range [${minConf.toFixed(6)}, ${maxConf.toFixed(6)}], valid: ${validCount}/${numAnchors}`);
-      }
+      // Stride processing complete - debug logging removed
     }
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log(`[SCRFD] Total faces before NMS: ${faces.length}`);
-    }
+    // Face detection complete - debug logging removed
     
     // Apply Non-Maximum Suppression
     if (faces.length > 0) {
@@ -240,9 +236,7 @@ function parseSCRFDOutputs(results, inputSize) {
       
       const finalFaces = filteredFaces.sort((a, b) => b.confidence - a.confidence);
       
-      if (process.env.FACE_MATCH_DEBUG === 'true') {
-        console.log(`[SCRFD] Final faces after NMS: ${finalFaces.length}`);
-      }
+      // NMS complete - debug logging removed
       
       return finalFaces;
     }
@@ -267,20 +261,11 @@ async function detectFaces(base64) {
     const input = await preprocessImage(base64);
     const inputName = session.inputNames && session.inputNames.length ? session.inputNames[0] : 'input';
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log('[SCRFD] Input shape:', input.dims);
-      console.log('[SCRFD] Input names:', session.inputNames);
-      console.log('[SCRFD] Output names:', session.outputNames);
-    }
+    // Debug logging removed for cleaner console output
     
     const results = await session.run({ [inputName]: input });
     
-    if (process.env.FACE_MATCH_DEBUG === 'true') {
-      console.log('[SCRFD] Output keys:', Object.keys(results));
-      Object.keys(results).forEach(key => {
-        console.log(`[SCRFD] Output ${key} shape:`, results[key].dims);
-      });
-    }
+    // Debug logging removed for cleaner console output
     
     // Parse SCRFD outputs
     const faces = parseSCRFDOutputs(results, SCRFD_INPUT_SIZE);
@@ -328,13 +313,21 @@ async function cropFaceFromImage(base64, faceBox, targetSize = 112) {
   const squareY = Math.max(0, Math.floor(centerY - size / 2));
   const squareSize = Math.min(size, Math.min(imgWidth - squareX, imgHeight - squareY));
   
-  if (process.env.FACE_MATCH_DEBUG === 'true') {
-    console.log(`[Crop] Original: ${imgWidth}x${imgHeight}, Face: ${faceBox.x},${faceBox.y},${faceBox.width}x${faceBox.height}`);
-    console.log(`[Crop] Scaled: ${x},${y},${width}x${height}, Square: ${squareX},${squareY},${squareSize}x${squareSize}`);
-  }
+  // Face cropping debug logs removed for cleaner console output
   
   // Crop to square and resize to exact target size (112x112 for ArcFace)
-  const cropped = await sharp(buf)
+  let processedBuffer;
+  try {
+    // Try PNG conversion first to handle problematic JPEGs
+    processedBuffer = await sharp(buf)
+      .png({ quality: 90 })
+      .toBuffer();
+  } catch (error) {
+    console.log('[FACE] Face crop PNG conversion failed, using original buffer');
+    processedBuffer = buf;
+  }
+
+  const cropped = await sharp(processedBuffer, { failOnError: false })
     .extract({ left: squareX, top: squareY, width: squareSize, height: squareSize })
     .resize(targetSize, targetSize, { 
       kernel: sharp.kernel.cubic,
