@@ -56,7 +56,11 @@ export default function LoginPage() {
         storage.setUser(response.user);
         storage.setToken(response.token);
 
-        if (errorCount > 0) {
+        // Check if user is admin and redirect accordingly
+        if (response.user && response.user.role === 'admin') {
+          setSuccess(true);
+          setTimeout(() => { navigate('/AdminDashboard'); }, 600);
+        } else if (errorCount > 0) {
           setShowFaceStep(true);
         } else {
           setSuccess(true);

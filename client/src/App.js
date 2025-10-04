@@ -1,9 +1,9 @@
 import { Routes, Route } from "react-router-dom";
 import './App.css';
-import RegistrationFlow from './COMPONENTS/RegistrationFlow';
-import LoginPage from './COMPONENTS/LoginPage';
-import UserDashboard from './COMPONENTS/UserDashboard';
-import AdminDashboard from './COMPONENTS/AdminDashboard';
+import RegistrationFlow from './Components/RegistrationFlow';
+import LoginPage from './Components/LoginPage';
+import UserDashboard from './Components/UserDashboard';
+import AdminDashboard from './Components/AdminDashboard';
 
 function App() {
   return (

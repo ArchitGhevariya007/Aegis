@@ -4,7 +4,10 @@ const API_BASE_URL = 'http://localhost:5000/api';
 // Helper function for API calls
 const apiCall = async (endpoint, options = {}) => {
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    console.log('Making API call to:', fullUrl, 'with method:', options.method || 'GET');
+    
+    const response = await fetch(fullUrl, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -12,15 +15,23 @@ const apiCall = async (endpoint, options = {}) => {
       ...options,
     });
 
-    const data = await response.json();
+    console.log('Response status:', response.status, response.statusText);
+
+    // Handle case where response is not JSON
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      throw new Error(`Route not found: ${fullUrl} returned ${response.status}`);
+    }
 
     if (!response.ok) {
-      throw new Error(data.message || 'API request failed');
+      throw new Error(data.message || data.error || `API request failed with status ${response.status}`);
     }
 
     return data;
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('API Error:', error.message);
     throw error;
   }
 };
@@ -42,12 +53,37 @@ export const authAPI = {
     });
   },
 
-  // User login
-  login: async (email, password) => {
-    return apiCall('/auth/login', {
+  // Check if email belongs to admin
+  checkAdmin: async (email) => {
+    return apiCall('/admin/check', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email }),
     });
+  },
+
+  // User login (unified for both user and admin)
+  login: async (email, password) => {
+    // First check if this is an admin
+    try {
+      const checkResult = await authAPI.checkAdmin(email);
+      
+      if (checkResult.isAdmin) {
+        // Login as admin
+        return apiCall('/admin/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+      } else {
+        // Login as regular user
+        return apiCall('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   },
 
   // Face verification after login

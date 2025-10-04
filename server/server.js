@@ -1,14 +1,21 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+const connectDB = require('./config/database');
+
 const authRoutes = require('./routes/auth');
 const kycRoutes = require('./routes/kyc');
 const aiRoutes = require('./routes/ai');
 const ocrRoutes = require('./routes/ocr');
+const adminRoutes = require('./routes/adminRoutes');
+const securityAlertRoutes = require('./routes/securityAlertRoutes');
+const roleRoutes = require('./routes/roleRoutes');
+const emergencyControlRoutes = require('./routes/emergencyControlRoutes');
+const locationTrackingRoutes = require('./routes/locationTrackingRoutes');
+const insiderMonitoringRoutes = require('./routes/insiderMonitoringRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,6 +46,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/ocr', ocrRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/security-alerts', securityAlertRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/emergency', emergencyControlRoutes);
+app.use('/api/locations', locationTrackingRoutes);
+app.use('/api/insider', insiderMonitoringRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -62,19 +75,31 @@ app.use('*', (req, res) => {
   });
 });
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/aegis')
-  .then(() => {
-    console.log('🗄️  Connected to MongoDB');
+// Import admin initialization
+const { initializeAdmin } = require('./models/Admin');
+
+// Start server after database connection
+const startServer = async () => {
+  try {
+    // Connect to database (aegis)
+    await connectDB();
+    
+    // Initialize admin account
+    await initializeAdmin();
+    
+    // Start Express server
     app.listen(PORT, () => {
       console.log('🚀 Aegis Server running on port', PORT);
       console.log('📡 API available at: http://localhost:' + PORT);
+      console.log('📊 Database: aegis (MongoDB)');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     });
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err);
+  } catch (error) {
+    console.error('❌ Server startup failed:', error);
     process.exit(1);
-  });
+  }
+};
+
+startServer();
 
 module.exports = app;

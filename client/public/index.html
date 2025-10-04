@@ -24,7 +24,119 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>React App</title>
+    <title>Aegis - Digital Identity Platform</title>
+    
+    <!-- Advanced MetaMask and Web3 Error Suppression -->
+    <script>
+      // Advanced Web3 provider blocking and error suppression
+      (function() {
+        // Function to block Web3 providers
+        function blockWeb3Providers() {
+          try {
+            // Block ethereum provider
+            if (window.ethereum) {
+              delete window.ethereum;
+            }
+            Object.defineProperty(window, 'ethereum', {
+              value: undefined,
+              writable: false,
+              configurable: false
+            });
+            
+            // Block web3 provider
+            if (window.web3) {
+              delete window.web3;
+            }
+            Object.defineProperty(window, 'web3', {
+              value: undefined,
+              writable: false,
+              configurable: false
+            });
+          } catch (e) {
+            // Silently handle any blocking errors
+          }
+        }
+        
+        // Initial blocking
+        blockWeb3Providers();
+        
+        // Block on DOM ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', blockWeb3Providers);
+        } else {
+          blockWeb3Providers();
+        }
+        
+        // Block on window load
+        window.addEventListener('load', blockWeb3Providers);
+        
+        // Continuous monitoring for MetaMask injection
+        const blockingInterval = setInterval(blockWeb3Providers, 100);
+        
+        // Stop monitoring after 5 seconds (MetaMask usually injects within this time)
+        setTimeout(() => {
+          clearInterval(blockingInterval);
+        }, 5000);
+        
+        // Advanced error suppression
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const originalLog = console.log;
+        
+        // Override console.error
+        console.error = function(...args) {
+          const message = args.join(' ').toLowerCase();
+          if (message.includes('metamask') || 
+              message.includes('ethereum') || 
+              message.includes('web3') ||
+              message.includes('failed to connect') ||
+              message.includes('chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn') ||
+              message.includes('inpage.js')) {
+            return; // Suppress Web3 related errors
+          }
+          originalError.apply(console, args);
+        };
+        
+        // Override console.warn
+        console.warn = function(...args) {
+          const message = args.join(' ').toLowerCase();
+          if (message.includes('metamask') || 
+              message.includes('ethereum') || 
+              message.includes('web3')) {
+            return; // Suppress Web3 related warnings
+          }
+          originalWarn.apply(console, args);
+        };
+        
+        // Global error handler for uncaught errors
+        window.addEventListener('error', function(event) {
+          const message = event.message.toLowerCase();
+          if (message.includes('metamask') || 
+              message.includes('ethereum') || 
+              message.includes('web3') ||
+              message.includes('failed to connect') ||
+              event.filename.includes('chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn')) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            return false;
+          }
+        }, true);
+        
+        // Global unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(event) {
+          const message = event.reason.toString().toLowerCase();
+          if (message.includes('metamask') || 
+              message.includes('ethereum') || 
+              message.includes('web3') ||
+              message.includes('failed to connect')) {
+            event.preventDefault();
+            return false;
+          }
+        });
+        
+        console.log('🛡️ Advanced Web3 error suppression active');
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

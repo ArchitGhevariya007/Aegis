@@ -16,6 +16,17 @@ const blockchainService = require('../services/blockchainService');
 
 const router = express.Router();
 
+// Helper function to generate blockchain data
+const generateBlockchainData = () => {
+  const crypto = require('crypto');
+  return {
+    idHash: crypto.randomBytes(32).toString('hex'),
+    blockReference: `Block #${Math.floor(Math.random() * 1000000) + 18000000}`,
+    lastUpdated: new Date(),
+    verified: true
+  };
+};
+
 // Generate JWT token
 const generateToken = (userId) => {
   return jwt.sign(
@@ -126,10 +137,13 @@ router.post('/register', validateRegistration, async (req, res) => {
         documentAuthenticity: true,
         faceMatch: true,
         livenessCheck: true
-      }
+      },
+      blockchainData: generateBlockchainData()
     });
 
     await user.save();
+    
+    console.log(`[BLOCKCHAIN] Generated blockchain data for new user ${user.email}`);
 
     // Log successful registration
     await user.logAccess('registration', true, ipAddress, userAgent);
@@ -209,7 +223,11 @@ router.post('/login', validateLogin, async (req, res) => {
     res.json({
       success: true,
       userId: user._id,
-      token
+      token,
+      user: {
+        email: user.email,
+        role: 'user'
+      }
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -361,9 +379,28 @@ router.get('/verification-status', auth, async (req, res) => {
 // GET /api/auth/blockchain-id
 router.get('/blockchain-id', auth, async (req, res) => {
   try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user has completed KYC and generate blockchain data if needed
+    if (user.kycStatus === 'completed' && (!user.blockchainData || !user.blockchainData.idHash)) {
+      user.blockchainData = generateBlockchainData();
+      await user.save();
+      
+      console.log(`[BLOCKCHAIN] Generated blockchain data for user ${user.email}`);
+    }
+
     res.json({
       success: true,
-      ...req.user.blockchainData
+      idHash: user.blockchainData?.idHash || '',
+      blockReference: user.blockchainData?.blockReference || '',
+      lastUpdated: user.blockchainData?.lastUpdated || null,
+      verified: user.blockchainData?.verified || false
     });
   } catch (error) {
     console.error('Blockchain data fetch error:', error);

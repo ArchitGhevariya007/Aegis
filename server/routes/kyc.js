@@ -216,7 +216,18 @@ router.post('/face-match', validateFaceMatch, async (req, res) => {
       // Update KYC status
       user.kycStatus = 'completed';
       
+      // Generate blockchain data for completed KYC
+      const crypto = require('crypto');
+      user.blockchainData = {
+        idHash: crypto.randomBytes(32).toString('hex'),
+        blockReference: `Block #${Math.floor(Math.random() * 1000000) + 18000000}`,
+        lastUpdated: new Date(),
+        verified: true
+      };
+      
       await user.save();
+      
+      console.log(`[BLOCKCHAIN] Generated blockchain data for KYC completed user ${user.email}`);
     }
 
     res.json({

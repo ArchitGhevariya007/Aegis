@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 
+// Enhanced Icon Components
 const ShieldIcon = ({ className = "w-4 h-4" }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
     </svg>
 );
+
 
 export default function BlockchainDigitalID({ standalone = false }) {
     const [blockchainData, setBlockchainData] = useState({
@@ -42,21 +44,21 @@ export default function BlockchainDigitalID({ standalone = false }) {
                     verified: data.verified || false
                 });
             } else {
-                // Fallback to dummy data if no blockchain data exists yet
+                // Fallback to empty data if no blockchain data exists yet
                 setBlockchainData({
-                    idHash: 'Pending...',
-                    blockReference: 'Pending...',
-                    lastUpdated: 'Not yet created',
+                    idHash: '',
+                    blockReference: '',
+                    lastUpdated: '',
                     verified: false
                 });
             }
         } catch (error) {
             console.error('Error fetching blockchain data:', error);
-            // Fallback to dummy data
+            // Fallback to empty data
             setBlockchainData({
-                idHash: 'Pending...',
-                blockReference: 'Pending...',
-                lastUpdated: 'Not yet created',
+                idHash: '',
+                blockReference: '',
+                lastUpdated: '',
                 verified: false
             });
         } finally {
@@ -116,6 +118,7 @@ export default function BlockchainDigitalID({ standalone = false }) {
         }
     };
 
+
     if (loading) {
         return (
             <div className={`p-4 lg:p-6 bg-white rounded-2xl shadow ${standalone ? 'max-w-lg mx-auto' : ''}`}>
@@ -160,6 +163,7 @@ export default function BlockchainDigitalID({ standalone = false }) {
                     </p>
                 </div>
             </div>
+
             <div className="flex flex-col sm:flex-row gap-3 mt-4">
                 <button 
                     onClick={downloadID}

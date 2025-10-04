@@ -66,9 +66,10 @@ export default function RegistrationFlow() {
   const [docPreviewName, setDocPreviewName] = useState("");
   const [docBase64, setDocBase64] = useState("");
   const [ocrEditable, setOcrEditable] = useState({
+    documentType: "", // Always empty for user input
     name: "",
     dob: "",
-    documentType: "",
+    idNumber: "",
     address: "",
   });
 
@@ -152,7 +153,14 @@ export default function RegistrationFlow() {
     return true;
   }, [user]);
 
-  const canNextFromStep3 = useMemo(() => !!docBase64, [docBase64]);
+  const canNextFromStep3 = useMemo(() => {
+    return !!docBase64 && 
+           !!ocrEditable.documentType.trim() && 
+           !!ocrEditable.name.trim() && 
+           !!ocrEditable.dob.trim() && 
+           !!ocrEditable.idNumber.trim() && 
+           !!ocrEditable.address.trim();
+  }, [docBase64, ocrEditable]);
   const canNextFromStep4 = useMemo(
     () => (!!user.faceData.liveFaceImage || !usingCamera) && !processing, // allow demo skip but block during processing
     [user.faceData.liveFaceImage, usingCamera, processing]
@@ -313,29 +321,32 @@ export default function RegistrationFlow() {
         
         // Initialize empty form data
         let extractedData = {
+          documentType: "", // Always empty for user input
           name: "",
           dob: "",
-          documentType: "",
+          idNumber: "",
           address: "",
         };
 
         if (ocrResult.success && ocrResult.data && ocrResult.data.documentData) {
           const ocrData = ocrResult.data.documentData;
           extractedData = {
+            documentType: "", // Always empty for user input
             name: ocrData.name || "",
-            dob: ocrData.dob ? formatForInputDate(new Date(ocrData.dob)) : "",
-            documentType: "ID Card", // Default display value
+            dob: ocrData.dob || "", // Already in DD-MM-YYYY format from backend
+            idNumber: ocrData.idNumber || "",
             address: ocrData.address || "",
           };
           
           // Log only detected fields
           const detectedFields = [];
           if (ocrData.name) detectedFields.push(`Name: ${ocrData.name}`);
-          if (ocrData.dob) detectedFields.push(`DOB: ${formatForInputDate(new Date(ocrData.dob))}`);
+          if (ocrData.dob) detectedFields.push(`DOB: ${ocrData.dob}`);
+          if (ocrData.idNumber) detectedFields.push(`ID: ${ocrData.idNumber}`);
           if (ocrData.address) detectedFields.push(`Address: ${ocrData.address}`);
           
           console.log('✅ OCR detected fields:', detectedFields.length > 0 ? detectedFields : 'None');
-          console.log('📊 OCR confidence:', (ocrResult.data.confidence * 100).toFixed(1) + '%');
+          console.log('📊 OCR confidence:', ((ocrResult.data?.confidence || ocrResult.confidence || 0) * 100).toFixed(1) + '%');
         } else {
           console.log('❌ OCR failed or no text detected, fields left empty');
         }
@@ -865,32 +876,83 @@ function Step3Document({
 
         <div className="grid gap-3">
           <label className="text-sm font-medium text-slate-700">
-            Extracted Information (Editable)
+            Extracted Information (Editable) <span className="text-red-500">*</span>
           </label>
-          <input
-            className="rounded-xl border px-4 py-3"
-            placeholder="Full Name"
-            value={ocrEditable.name}
-            onChange={(e) => setOcrEditable((o) => ({ ...o, name: e.target.value }))}
-          />
-          <input
-            type="date"
-            className="rounded-xl border px-4 py-3"
-            value={ocrEditable.dob}
-            onChange={(e) => setOcrEditable((o) => ({ ...o, dob: e.target.value }))}
-          />
-          <input
-            className="rounded-xl border px-4 py-3"
-            placeholder="Document Type"
-            value={ocrEditable.documentType}
-            onChange={(e) => setOcrEditable((o) => ({ ...o, documentType: e.target.value }))}
-          />
-          <input
-            className="rounded-xl border px-4 py-3"
-            placeholder="Address"
-            value={ocrEditable.address}
-            onChange={(e) => setOcrEditable((o) => ({ ...o, address: e.target.value }))}
-          />
+          
+          {/* Document Type - First field, always empty for user input */}
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Document Type *</label>
+            <input
+              className="rounded-xl border px-4 py-3 w-full"
+              placeholder="Enter document type (e.g., PAN Card, Aadhaar Card, Passport)"
+              value={ocrEditable.documentType}
+              onChange={(e) => setOcrEditable((o) => ({ ...o, documentType: e.target.value }))}
+              required
+            />
+          </div>
+
+          {/* Full Name */}
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Full Name *</label>
+            <input
+              className="rounded-xl border px-4 py-3 w-full"
+              placeholder="Full Name"
+              value={ocrEditable.name}
+              onChange={(e) => setOcrEditable((o) => ({ ...o, name: e.target.value }))}
+              required
+            />
+          </div>
+
+          {/* Date of Birth */}
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Date of Birth (DD-MM-YYYY) *</label>
+            <input
+              type="text"
+              className="rounded-xl border px-4 py-3 w-full"
+              placeholder="DD-MM-YYYY"
+              value={ocrEditable.dob}
+              onChange={(e) => setOcrEditable((o) => ({ ...o, dob: e.target.value }))}
+              pattern="\d{2}-\d{2}-\d{4}"
+              required
+            />
+          </div>
+
+          {/* ID Number */}
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">ID Number *</label>
+            <input
+              className="rounded-xl border px-4 py-3 w-full"
+              placeholder="ID Number (PAN, Aadhaar, etc.)"
+              value={ocrEditable.idNumber || ''}
+              onChange={(e) => setOcrEditable((o) => ({ ...o, idNumber: e.target.value }))}
+              required
+            />
+          </div>
+
+          {/* Address */}
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Address *</label>
+            <textarea
+              className="rounded-xl border px-4 py-3 w-full resize-none"
+              placeholder="Complete Address"
+              rows={3}
+              value={ocrEditable.address}
+              onChange={(e) => setOcrEditable((o) => ({ ...o, address: e.target.value }))}
+              required
+            />
+          </div>
+
+          {/* Disclaimer Message */}
+          <div className=" p-2 rounded-lg">
+            <div className="flex items-start gap-2">
+              <div className="text-xs text-amber-800">
+                <p className="mt-1">
+                  *Extracted information may be inaccurate due to OCR limitations. 
+                  Please double-check all fields carefully before proceeding.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

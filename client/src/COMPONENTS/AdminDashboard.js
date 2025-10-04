@@ -48,14 +48,14 @@ export default function AdminDashboard() {
                         </span>
 
                         {/* Admin Navigation */}
-                        <div className="hidden sm:flex items-center gap-2">
+                        {/* <div className="hidden sm:flex items-center gap-2">
                             <button
                                 className={`inline-flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg font-medium text-xs lg:text-sm bg-indigo-600 text-white`}
                             >
                                 <AdminIcon className="w-3 h-3 lg:w-4 lg:h-4" />
                                 User Panel
                             </button>
-                        </div>
+                        </div> */}
                     </div>
 
                     <div className="flex items-center gap-2 lg:gap-3">
