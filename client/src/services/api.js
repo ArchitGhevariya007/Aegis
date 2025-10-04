@@ -146,6 +146,19 @@ export const kycAPI = {
   },
 };
 
+// Location tracking API calls
+export const locationAPI = {
+  // Get map data for visualization
+  getMapData: async (timeRange = '24h') => {
+    return apiCall(`/locations/map-data?timeRange=${timeRange}`);
+  },
+
+  // Get recent activity
+  getRecentActivity: async (limit = 10) => {
+    return apiCall(`/locations/recent-activity?limit=${limit}`);
+  },
+};
+
 // Local storage helpers
 export const storage = {
   setToken: (token) => localStorage.setItem('authToken', token),

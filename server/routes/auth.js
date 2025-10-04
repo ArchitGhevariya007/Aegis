@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const User = require('../models/User');
+const LoginLocation = require('../models/LoginLocation');
 const { auth } = require('../middleware/auth');
 const { 
   validateRegistration, 
@@ -13,6 +14,7 @@ const {
 const { uploadIdDocument, handleUploadError } = require('../middleware/upload');
 const facePipeline = require('../services/facePipeline');
 const blockchainService = require('../services/blockchainService');
+const geolocationService = require('../services/geolocationService');
 
 const router = express.Router();
 
@@ -148,6 +150,20 @@ router.post('/register', validateRegistration, async (req, res) => {
     // Log successful registration
     await user.logAccess('registration', true, ipAddress, userAgent);
 
+    // Track registration location
+    try {
+      const locationData = await geolocationService.getCompleteLocationData(req);
+      await LoginLocation.create({
+        userId: user._id,
+        ...locationData,
+        status: 'success',
+        loginType: 'register'
+      });
+      console.log(`[LOCATION] Tracked registration location for ${user.email}`);
+    } catch (locError) {
+      console.error('[LOCATION] Error tracking registration location:', locError.message);
+    }
+
     res.status(201).json({
       success: true,
       userId: user._id,
@@ -216,6 +232,20 @@ router.post('/login', validateLogin, async (req, res) => {
 
     // Log successful login
     await user.logAccess('login', true, ipAddress, userAgent);
+
+    // Track login location
+    try {
+      const locationData = await geolocationService.getCompleteLocationData(req);
+      await LoginLocation.create({
+        userId: user._id,
+        ...locationData,
+        status: 'success',
+        loginType: 'login'
+      });
+      console.log(`[LOCATION] Tracked login location for ${user.email}`);
+    } catch (locError) {
+      console.error('[LOCATION] Error tracking login location:', locError.message);
+    }
 
     // Generate JWT token
     const token = generateToken(user._id);

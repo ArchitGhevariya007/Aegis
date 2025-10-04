@@ -3,6 +3,7 @@ const router = express.Router();
 const LoginLocation = require('../models/LoginLocation');
 const SecurityAlert = require('../models/SecurityAlert');
 const adminAuth = require('../middleware/adminAuth');
+const geolocationService = require('../services/geolocationService');
 
 // Get all login locations with filtering and pagination
 router.get('/', adminAuth, async (req, res) => {
@@ -168,6 +169,125 @@ router.get('/user/:userId', adminAuth, async (req, res) => {
             currentPage: page
         });
     } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get aggregated location data for map visualization
+router.get('/map-data', adminAuth, async (req, res) => {
+    try {
+        const { timeRange = '30' } = req.query; // days
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(timeRange));
+
+        // Aggregate login locations by city
+        const locationStats = await LoginLocation.aggregate([
+            {
+                $match: {
+                    loginTime: { $gte: startDate },
+                    status: 'success'
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        city: '$city',
+                        country: '$country',
+                        coordinates: '$location.coordinates'
+                    },
+                    count: { $sum: 1 },
+                    lastLogin: { $max: '$loginTime' },
+                    users: { $addToSet: '$userId' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    city: '$_id.city',
+                    country: '$_id.country',
+                    coordinates: '$_id.coordinates',
+                    loginCount: '$count',
+                    uniqueUsers: { $size: '$users' },
+                    lastLogin: 1,
+                    status: {
+                        $cond: {
+                            if: { $gte: ['$count', 10] },
+                            then: 'high',
+                            else: {
+                                $cond: {
+                                    if: { $gte: ['$count', 5] },
+                                    then: 'medium',
+                                    else: 'low'
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            { $sort: { loginCount: -1 } },
+            { $limit: 100 } // Top 100 locations
+        ]);
+
+        res.json({
+            success: true,
+            locations: locationStats,
+            totalLocations: locationStats.length
+        });
+    } catch (error) {
+        console.error('Map data error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get recent activity summary
+router.get('/recent-activity', adminAuth, async (req, res) => {
+    try {
+        const { limit = 10 } = req.query;
+
+        const recentActivity = await LoginLocation.aggregate([
+            {
+                $match: {
+                    status: 'success'
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        city: '$city',
+                        country: '$country',
+                        coordinates: '$location.coordinates'
+                    },
+                    count: { $sum: 1 },
+                    lastLogin: { $max: '$loginTime' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    city: '$_id.city',
+                    country: '$_id.country',
+                    coordinates: '$_id.coordinates',
+                    loginCount: '$count',
+                    lastLogin: 1,
+                    status: {
+                        $cond: {
+                            if: { $lt: ['$count', 5] },
+                            then: 'suspicious',
+                            else: 'normal'
+                        }
+                    }
+                }
+            },
+            { $sort: { lastLogin: -1 } },
+            { $limit: parseInt(limit) }
+        ]);
+
+        res.json({
+            success: true,
+            activities: recentActivity
+        });
+    } catch (error) {
+        console.error('Recent activity error:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });

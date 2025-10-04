@@ -9,6 +9,7 @@ import InsiderMonitorPanel from "./AdminDashboard/InsiderMonitorPanel";
 
 
 // Example icon for Admin
+// eslint-disable-next-line
 const AdminIcon = ({ className = "w-4 h-4" }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -119,50 +120,8 @@ export default function AdminDashboard() {
                 {/* Tab Content */}
                 {activeTab === "overview" && (
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
-                        {/* Left: Login Location Map */}
-                        <div className="p-6 bg-white rounded-2xl shadow">
-                            <h2 className="text-lg font-semibold mb-4">Login Location Map</h2>
-                            <div className="bg-indigo-50 border rounded-xl p-10 text-center text-slate-500 mb-6">
-                                <p className="text-2xl">🌍</p>
-                                <p className="font-medium">Interactive World Map</p>
-                                <p className="text-sm text-slate-500">
-                                    Real-time login location tracking
-                                </p>
-                            </div>
-
-                            {/* Recent Activity */}
-                            <h3 className="font-semibold mb-3">Recent Activity</h3>
-                            <ul className="space-y-3">
-                                <li className="flex items-center justify-between p-3 border rounded-xl">
-                                    <span className="flex items-center gap-2">
-                                        <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                                        New York <span className="text-xs text-slate-500">(40.7589, -73.9851)</span>
-                                    </span>
-                                    <span className="text-xs text-slate-600">15 logins</span>
-                                </li>
-                                <li className="flex items-center justify-between p-3 border rounded-xl">
-                                    <span className="flex items-center gap-2">
-                                        <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                                        Los Angeles{" "}
-                                        <span className="text-xs text-slate-500">(34.0522, -118.2437)</span>
-                                    </span>
-                                    <span className="text-xs text-slate-600">8 logins</span>
-                                </li>
-                                <li className="flex items-center justify-between p-3 border rounded-xl">
-                                    <span className="flex items-center gap-2">
-                                        <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                                        Chicago{" "}
-                                        <span className="text-xs text-slate-500">(41.8781, -87.6298)</span>
-                                    </span>
-                                    <span className="text-xs text-slate-600">3 logins</span>
-                                </li>
-                                <li className="flex items-center justify-between p-3 border rounded-xl">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                                    Houston <span className="text-xs text-slate-500">(29.7604, -95.3698)</span>
-                                    <span className="text-xs text-slate-600 ml-auto">12 logins</span>
-                                </li>
-                            </ul>
-                        </div>
+                        {/* Left: Login Location Map - Mini Mode */}
+                        <LocationMapPanel miniMode={true} activityLimit={4} />
 
                         {/* Right: Emergency Controls */}
                         <div className="p-6 bg-white rounded-2xl shadow">

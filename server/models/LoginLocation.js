@@ -23,19 +23,26 @@ const loginLocationSchema = new mongoose.Schema({
     },
     deviceInfo: {
         type: {
-            type: String,
-            required: true
+            type: String
         },
         browser: String,
         os: String,
         device: String
     },
     city: String,
+    region: String,
     country: String,
+    countryCode: String,
+    timezone: String,
     status: {
         type: String,
         enum: ['success', 'failed', 'suspicious'],
         default: 'success'
+    },
+    loginType: {
+        type: String,
+        enum: ['login', 'register', 'password_reset'],
+        default: 'login'
     },
     loginTime: {
         type: Date,
