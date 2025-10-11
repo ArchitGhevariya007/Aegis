@@ -1,15 +1,21 @@
 const mongoose = require('mongoose');
 
 const securityAlertSchema = new mongoose.Schema({
-    type: {
+    alertType: {
         type: String,
         required: true,
-        enum: ['login_attempt', 'suspicious_activity', 'system_error', 'emergency']
-    },
-    severity: {
-        type: String,
-        required: true,
-        enum: ['low', 'medium', 'high', 'critical']
+        enum: [
+            'BRUTE_FORCE_DETECTED',
+            'IMPOSSIBLE_TRAVEL',
+            'IMPOSSIBLE_LOCATION_SWITCH',
+            'UNAUTHORIZED_ACCESS_ATTEMPT',
+            'SUSPICIOUS_IP',
+            'ANOMALOUS_LOGIN_PATTERN',
+            'MULTIPLE_DEVICE_LOGIN',
+            'FAILED_FACE_VERIFICATION',
+            'SUSPICIOUS_REGISTRATION',
+            'ACCOUNT_TAKEOVER_ATTEMPT'
+        ]
     },
     title: {
         type: String,
@@ -19,36 +25,57 @@ const securityAlertSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    severity: {
+        type: String,
+        required: true,
+        enum: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
+        default: 'MEDIUM'
+    },
+    userEmail: {
+        type: String,
+        required: true
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    ipAddress: String,
     location: {
-        type: {
-            type: String,
-            enum: ['Point'],
-            default: 'Point'
-        },
+        city: String,
+        country: String,
         coordinates: {
             type: [Number],
             default: [0, 0]
         }
     },
-    ipAddress: String,
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+    deviceInfo: {
+        type: {
+            type: String
+        },
+        browser: String,
+        os: String,
+        device: String
+    },
+    metadata: {
+        attemptCount: Number,
+        timeWindow: String,
+        previousLocation: Object,
+        currentLocation: Object,
+        travelTime: Number,
+        distance: Number,
+        additionalInfo: Object
     },
     status: {
         type: String,
-        enum: ['new', 'investigating', 'resolved', 'dismissed'],
-        default: 'new'
+        enum: ['ACTIVE', 'INVESTIGATING', 'RESOLVED', 'DISMISSED'],
+        default: 'ACTIVE'
     },
     resolvedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Admin'
     },
     resolvedAt: Date,
-    metadata: {
-        type: Map,
-        of: String
-    }
+    resolutionNotes: String
 }, { timestamps: true });
 
 // Index for efficient querying

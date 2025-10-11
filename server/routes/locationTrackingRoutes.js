@@ -176,17 +176,28 @@ router.get('/user/:userId', adminAuth, async (req, res) => {
 // Get aggregated location data for map visualization
 router.get('/map-data', adminAuth, async (req, res) => {
     try {
-        const { timeRange = '30' } = req.query; // days
+        const { timeRange = '30', activeOnly = 'false' } = req.query; // days
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - parseInt(timeRange));
+
+        // Build match query
+        const matchQuery = {
+            loginTime: { $gte: startDate },
+            status: 'success'
+        };
+
+        // If activeOnly is true, only show currently active/online users
+        if (activeOnly === 'true') {
+            matchQuery.isActive = true;
+            // Check for recent activity (last 30 minutes)
+            const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+            matchQuery.lastActivity = { $gte: thirtyMinutesAgo };
+        }
 
         // Aggregate login locations by city
         const locationStats = await LoginLocation.aggregate([
             {
-                $match: {
-                    loginTime: { $gte: startDate },
-                    status: 'success'
-                }
+                $match: matchQuery
             },
             {
                 $group: {
@@ -242,13 +253,23 @@ router.get('/map-data', adminAuth, async (req, res) => {
 // Get recent activity summary
 router.get('/recent-activity', adminAuth, async (req, res) => {
     try {
-        const { limit = 10 } = req.query;
+        const { limit = 10, activeOnly = 'false' } = req.query;
+
+        // Build match query
+        const matchQuery = {
+            status: 'success'
+        };
+
+        // If activeOnly is true, only show currently active/online users
+        if (activeOnly === 'true') {
+            matchQuery.isActive = true;
+            const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+            matchQuery.lastActivity = { $gte: thirtyMinutesAgo };
+        }
 
         const recentActivity = await LoginLocation.aggregate([
             {
-                $match: {
-                    status: 'success'
-                }
+                $match: matchQuery
             },
             {
                 $group: {

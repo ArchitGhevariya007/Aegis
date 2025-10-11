@@ -96,6 +96,16 @@ export const authAPI = {
       body: JSON.stringify({ faceImage }),
     });
   },
+
+  // Logout
+  logout: async (token) => {
+    return apiCall('/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
 };
 
 // KYC API calls

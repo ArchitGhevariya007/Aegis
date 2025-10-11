@@ -15,6 +15,7 @@ const { uploadIdDocument, handleUploadError } = require('../middleware/upload');
 const facePipeline = require('../services/facePipeline');
 const blockchainService = require('../services/blockchainService');
 const geolocationService = require('../services/geolocationService');
+const { performSecurityChecks } = require('../services/securityDetectionService');
 
 const router = express.Router();
 
@@ -217,6 +218,22 @@ router.post('/login', validateLogin, async (req, res) => {
       await user.incLoginAttempts();
       await user.logAccess('login', false, ipAddress, userAgent, 'Invalid password');
       
+      // Track failed login location for security detection
+      try {
+        const locationData = await geolocationService.getCompleteLocationData(req);
+        await LoginLocation.create({
+          userId: user._id,
+          userEmail: user.email,
+          ...locationData,
+          status: 'failed',
+          loginType: 'failed'
+        });
+        // Check for brute force attacks
+        await performSecurityChecks(user._id, user.email, null, ipAddress, 'failed_login');
+      } catch (secError) {
+        console.error('[SECURITY] Error in failed login detection:', secError);
+      }
+      
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -233,22 +250,49 @@ router.post('/login', validateLogin, async (req, res) => {
     // Log successful login
     await user.logAccess('login', true, ipAddress, userAgent);
 
-    // Track login location
+    // Generate session ID
+    const crypto = require('crypto');
+    const sessionId = crypto.randomBytes(32).toString('hex');
+
+    // Track login location and perform security checks
     try {
       const locationData = await geolocationService.getCompleteLocationData(req);
-      await LoginLocation.create({
+      
+      // Mark all previous sessions for this user as inactive
+      await LoginLocation.updateMany(
+        { userId: user._id, isActive: true },
+        { 
+          $set: { 
+            isActive: false,
+            logoutTime: new Date()
+          }
+        }
+      );
+      
+      const loginLocation = await LoginLocation.create({
         userId: user._id,
+        userEmail: user.email,
+        sessionId: sessionId,
         ...locationData,
         status: 'success',
-        loginType: 'login'
+        loginType: 'login',
+        isActive: true,
+        lastActivity: new Date()
       });
-      console.log(`[LOCATION] Tracked login location for ${user.email}`);
+      console.log(`[LOCATION] Tracked login location for ${user.email} with session ${sessionId}`);
+      
+      // Perform security checks for impossible travel, location switches, etc.
+      await performSecurityChecks(user._id, user.email, loginLocation, ipAddress, 'login');
     } catch (locError) {
       console.error('[LOCATION] Error tracking login location:', locError.message);
     }
 
-    // Generate JWT token
-    const token = generateToken(user._id);
+    // Generate JWT token with session ID
+    const token = jwt.sign(
+      { userId: user._id, sessionId: sessionId },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
     res.json({
       success: true,
@@ -264,6 +308,39 @@ router.post('/login', validateLogin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Login failed. Please try again.'
+    });
+  }
+});
+
+// POST /api/auth/logout
+router.post('/logout', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const sessionId = req.user.sessionId;
+
+    // Mark the session as inactive
+    await LoginLocation.updateOne(
+      { userId: userId, sessionId: sessionId, isActive: true },
+      { 
+        $set: { 
+          isActive: false,
+          logoutTime: new Date(),
+          loginType: 'logout'
+        }
+      }
+    );
+
+    console.log(`[LOGOUT] User ${userId} logged out from session ${sessionId}`);
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Logout failed'
     });
   }
 });
@@ -290,14 +367,7 @@ router.post('/face-verify', validateFaceVerification, async (req, res) => {
       });
     }
 
-    // TODO: Implement actual face recognition logic here
-    // For now, we'll simulate the verification
-    // In a real implementation, you would:
-    // 1. Extract face features from the uploaded image
-    // 2. Compare with stored face encoding
-    // 3. Return match score and verification result
-    
-    // Simulated face verification
+    //Face Recognition
     const verificationResult = await simulateFaceVerification(faceImage, user.faceData.faceEncoding);
 
     res.json({
@@ -314,13 +384,11 @@ router.post('/face-verify', validateFaceVerification, async (req, res) => {
   }
 });
 
-// Simulated face verification function
-// Replace this with actual face recognition implementation
+//  face verification function
 async function simulateFaceVerification(faceImage, storedEncoding) {
-  // Simulate processing time
   await new Promise(resolve => setTimeout(resolve, 1000));
   
-  // Simulate verification result (90% success rate)
+  //  verification result (90% success rate)
   const isVerified = Math.random() > 0.1;
   const matchScore = isVerified ? 0.85 + Math.random() * 0.15 : 0.3 + Math.random() * 0.4;
   

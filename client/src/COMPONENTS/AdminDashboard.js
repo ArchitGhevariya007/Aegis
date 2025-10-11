@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { authAPI, storage } from "../services/api";
+import { AlertTriangle, FileText } from 'lucide-react';
 
 import SecurityAlertsPanel from "./AdminDashboard/SecurityAlertsPanel";
 import RoleViewsPanel from "./AdminDashboard/RoleViewsPanel";
@@ -25,8 +27,19 @@ export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState("overview");
     const navigate = useNavigate();
 
-    const handleLogout = () => {
-        navigate("/login");
+    const handleLogout = async () => {
+        try {
+            const token = storage.getToken();
+            if (token) {
+                await authAPI.logout(token);
+            }
+            storage.removeToken();
+            storage.removeUser();
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            navigate("/login");
+        }
     };
 
     const tabs = [
@@ -127,8 +140,9 @@ export default function AdminDashboard() {
                         <div className="p-6 bg-white rounded-2xl shadow">
                             <h2 className="text-lg font-semibold mb-4">Emergency Controls</h2>
 
-                            <div className="p-4 mb-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
-                                ⚠️ Emergency controls allow immediate system lockdown in case of security breach or compromise.
+                            <div className="p-4 mb-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 flex items-start gap-2">
+                                <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                <span>Emergency controls allow immediate system lockdown in case of security breach or compromise.</span>
                             </div>
 
                             {/* Master Switch */}
@@ -147,11 +161,13 @@ export default function AdminDashboard() {
 
                             {/* Buttons */}
                             <div className="flex gap-3">
-                                <button className="flex-1 border border-red-400 text-red-600 py-2 rounded-xl hover:bg-red-50">
-                                    ⚠️ Security Incident
+                                <button className="flex-1 border border-red-400 text-red-600 py-2 rounded-xl hover:bg-red-50 flex items-center justify-center gap-2">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    Security Incident
                                 </button>
-                                <button className="flex-1 border border-indigo-400 text-indigo-600 py-2 rounded-xl hover:bg-indigo-50">
-                                    📄 Generate Report
+                                <button className="flex-1 border border-indigo-400 text-indigo-600 py-2 rounded-xl hover:bg-indigo-50 flex items-center justify-center gap-2">
+                                    <FileText className="w-4 h-4" />
+                                    Generate Report
                                 </button>
                             </div>
                         </div>

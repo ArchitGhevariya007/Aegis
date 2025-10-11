@@ -29,7 +29,12 @@ const auth = async (req, res, next) => {
       });
     }
 
-    req.user = user;
+    // Attach both user and decoded token data (including sessionId)
+    req.user = {
+      ...user.toObject(),
+      userId: decoded.userId,
+      sessionId: decoded.sessionId
+    };
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

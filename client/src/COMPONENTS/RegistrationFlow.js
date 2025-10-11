@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 // eslint-disable-next-line
 import { authAPI, storage } from "../services/api";
 import NavBar from "./NavBar";
+import { Upload } from 'lucide-react';
 /**
  * Digital ID System – Registration Flow (5 steps)
  * Clean UI, strong UX; demo-complete
@@ -847,7 +848,7 @@ function Step3Document({
 
       <div className="mt-6 border-2 border-dashed rounded-2xl p-8 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-          <span className="text-2xl">⬆️</span>
+          <Upload className="w-6 h-6 text-slate-600" />
         </div>
         <p className="text-slate-600">Upload your ID card or driver's license</p>
         <div className="mt-4">

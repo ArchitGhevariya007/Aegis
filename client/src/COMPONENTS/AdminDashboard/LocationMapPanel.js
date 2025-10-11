@@ -3,6 +3,7 @@ import axios from 'axios';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { MapPin, Activity, Globe, Loader2, Info, RefreshCw } from 'lucide-react';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -77,12 +78,13 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('30');
   const [error, setError] = useState(null);
+  const [showActiveOnly, setShowActiveOnly] = useState(true); // Default to showing only active users
 
   useEffect(() => {
     fetchMapData();
     fetchRecentActivity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange]);
+  }, [timeRange, showActiveOnly]);
 
   const fetchMapData = async () => {
     try {
@@ -90,7 +92,7 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
       console.log('Fetching map data with token:', token ? 'Token exists' : 'No token');
       
       const response = await axios.get(
-        `http://localhost:5000/api/locations/map-data?timeRange=${timeRange}`,
+        `http://localhost:5000/api/locations/map-data?timeRange=${timeRange}&activeOnly=${showActiveOnly}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -112,7 +114,7 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
       
       const limit = miniMode ? 4 : activityLimit;
       const response = await axios.get(
-        `http://localhost:5000/api/locations/recent-activity?limit=${limit}`,
+        `http://localhost:5000/api/locations/recent-activity?limit=${limit}&activeOnly=${showActiveOnly}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -154,7 +156,7 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
         <h2 className="text-lg font-semibold mb-4">Login Location Map</h2>
         <div className={`flex items-center justify-center ${miniMode ? 'h-64' : 'h-96'}`}>
           <div className="flex items-center gap-2 text-slate-500">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+            <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
             <span>Loading map...</span>
           </div>
         </div>
@@ -169,47 +171,88 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
         <div>
           <h2 className="text-lg font-semibold">Login Location Map</h2>
           {!miniMode && (
-            <p className="text-sm text-slate-500">
-              Tracking {mapData.totalLocations} unique locations
+            <p className="text-sm text-slate-500 flex items-center gap-1">
+              {showActiveOnly ? (
+                <>
+                  <Activity className="w-4 h-4 text-green-500" />
+                  <span>{mapData.totalLocations} active users online now</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-4 h-4" />
+                  <span>Tracking {mapData.totalLocations} unique locations (all time)</span>
+                </>
+              )}
             </p>
           )}
         </div>
         {!miniMode && (
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
-            className="px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="365">Last year</option>
-          </select>
+          <div className="flex items-center gap-3">
+            {/* Active Users Toggle */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm text-slate-600">Active Only</span>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={showActiveOnly}
+                  onChange={(e) => setShowActiveOnly(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-500 transition-colors relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+              </div>
+              {showActiveOnly && <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                <Activity className="w-3 h-3 animate-pulse" />
+                Online
+              </span>}
+            </label>
+            
+            {/* Time Range Selector */}
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last year</option>
+            </select>
+          </div>
         )}
       </div>
 
       {/* {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-          <p className="font-semibold mb-1">⚠️ {error}</p>
-          <p className="text-sm">Please check:</p>
-          <ul className="text-sm list-disc ml-5 mt-1">
-            <li>Server is running on port 5000</li>
-            <li>You're logged in as admin</li>
-            <li>Open browser console (F12) for details</li>
-          </ul>
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold mb-1">{error}</p>
+              <p className="text-sm">Please check:</p>
+              <ul className="text-sm list-disc ml-5 mt-1">
+                <li>Server is running on port 5000</li>
+                <li>You're logged in as admin</li>
+                <li>Open browser console (F12) for details</li>
+              </ul>
+            </div>
+          </div>
         </div>
       )} */}
 
       {!error && mapData.totalLocations === 0 && !loading && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg">
-          <p className="font-semibold mb-1">ℹ️ No Location Data Yet</p>
-          <p className="text-sm">Location tracking will start working once users log in or register.</p>
-          <p className="text-sm mt-2">To test:</p>
-          <ul className="text-sm list-disc ml-5 mt-1">
-            <li>Logout and login again as admin</li>
-            <li>Register a new user</li>
-            <li>Login with an existing user account</li>
-          </ul>
+          <div className="flex items-start gap-2">
+            <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold mb-1">No Location Data Yet</p>
+              <p className="text-sm">Location tracking will start working once users log in or register.</p>
+              <p className="text-sm mt-2">To test:</p>
+              <ul className="text-sm list-disc ml-5 mt-1">
+                <li>Logout and login again as admin</li>
+                <li>Register a new user</li>
+                <li>Login with an existing user account</li>
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 
@@ -318,7 +361,7 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
       {/* Recent Activity */}
       <div>
         <h3 className="text-md font-semibold mb-4 flex items-center gap-2">
-          <span>📍</span>
+          <MapPin className="w-5 h-5 text-indigo-600" />
           Recent Activity
         </h3>
         
@@ -381,9 +424,10 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
             fetchMapData();
             fetchRecentActivity();
           }}
-          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center gap-2"
         >
-          🔄 Refresh Data
+          <RefreshCw className="w-4 h-4" />
+          Refresh Data
         </button>
       </div>
 

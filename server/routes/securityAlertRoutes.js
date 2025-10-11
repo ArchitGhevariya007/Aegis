@@ -9,7 +9,7 @@ router.get('/', adminAuth, async (req, res) => {
         const {
             page = 1,
             limit = 10,
-            type,
+            alertType,
             severity,
             status,
             startDate,
@@ -18,7 +18,7 @@ router.get('/', adminAuth, async (req, res) => {
 
         const query = {};
         
-        if (type) query.type = type;
+        if (alertType) query.alertType = alertType;
         if (severity) query.severity = severity;
         if (status) query.status = status;
         if (startDate || endDate) {
@@ -29,7 +29,7 @@ router.get('/', adminAuth, async (req, res) => {
 
         const alerts = await SecurityAlert.find(query)
             .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
+            .skip((page - 1) * parseInt(limit))
             .limit(parseInt(limit))
             .populate('userId', 'email name')
             .populate('resolvedBy', 'email');
@@ -40,10 +40,11 @@ router.get('/', adminAuth, async (req, res) => {
             alerts,
             total,
             pages: Math.ceil(total / limit),
-            currentPage: page
+            currentPage: parseInt(page)
         });
     } catch (error) {
-        res.status(500).json({ error: 'Server error' });
+        console.error('Error fetching security alerts:', error);
+        res.status(500).json({ error: 'Server error', message: error.message });
     }
 });
 
@@ -95,10 +96,35 @@ router.get('/stats', adminAuth, async (req, res) => {
     }
 });
 
+// Resolve alert
+router.patch('/:alertId/resolve', adminAuth, async (req, res) => {
+    try {
+        const { resolutionNotes } = req.body;
+        const alert = await SecurityAlert.findById(req.params.alertId);
+
+        if (!alert) {
+            return res.status(404).json({ error: 'Alert not found' });
+        }
+
+        alert.status = 'RESOLVED';
+        alert.resolvedBy = req.admin._id;
+        alert.resolvedAt = new Date();
+        if (resolutionNotes) {
+            alert.resolutionNotes = resolutionNotes;
+        }
+
+        await alert.save();
+        res.json({ message: 'Alert resolved successfully', alert });
+    } catch (error) {
+        console.error('Error resolving alert:', error);
+        res.status(500).json({ error: 'Server error', message: error.message });
+    }
+});
+
 // Update alert status
 router.patch('/:alertId', adminAuth, async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, resolutionNotes } = req.body;
         const alert = await SecurityAlert.findById(req.params.alertId);
 
         if (!alert) {
@@ -106,15 +132,19 @@ router.patch('/:alertId', adminAuth, async (req, res) => {
         }
 
         alert.status = status;
-        if (status === 'resolved') {
+        if (status === 'RESOLVED') {
             alert.resolvedBy = req.admin._id;
             alert.resolvedAt = new Date();
+        }
+        if (resolutionNotes) {
+            alert.resolutionNotes = resolutionNotes;
         }
 
         await alert.save();
         res.json(alert);
     } catch (error) {
-        res.status(500).json({ error: 'Server error' });
+        console.error('Error updating alert:', error);
+        res.status(500).json({ error: 'Server error', message: error.message });
     }
 });
 

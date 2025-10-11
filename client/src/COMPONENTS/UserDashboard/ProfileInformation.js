@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { CheckCircle } from 'lucide-react';
 
 const UserIcon = ({ className = "w-4 h-4" }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,8 +89,9 @@ export default function ProfileInformation() {
                     <h3 className="text-lg lg:text-xl font-semibold text-slate-800 flex flex-col sm:flex-row sm:items-center gap-2">
                         <span>{extractNameFromEmail(userInfo.email)}</span>
                         {userInfo.verified && (
-                            <span className="text-emerald-500 text-xs lg:text-sm bg-emerald-50 px-2 py-1 rounded-full whitespace-nowrap">
-                                ✓ Verified
+                            <span className="text-emerald-500 text-xs lg:text-sm bg-emerald-50 px-2 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" />
+                                Verified
                             </span>
                         )}
                     </h3>
