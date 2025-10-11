@@ -26,7 +26,12 @@ const apiCall = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
-      throw new Error(data.message || data.error || `API request failed with status ${response.status}`);
+      const error = new Error(data.message || data.error || `API request failed with status ${response.status}`);
+      // Preserve lockdown flag from response
+      if (data.lockdown) {
+        error.lockdown = true;
+      }
+      throw error;
     }
 
     return data;
@@ -166,6 +171,61 @@ export const locationAPI = {
   // Get recent activity
   getRecentActivity: async (limit = 10) => {
     return apiCall(`/locations/recent-activity?limit=${limit}`);
+  },
+};
+
+// Emergency control API calls
+export const emergencyAPI = {
+  // Get emergency status
+  getStatus: async (token) => {
+    return apiCall('/emergency/status', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Toggle system lockdown
+  toggleLockdown: async (enabled, reason, token) => {
+    const payload = { enabled, reason };
+    console.log('[API] Sending lockdown toggle:', payload);
+    console.log('[API] Stringified:', JSON.stringify(payload));
+    
+    return apiCall('/emergency/toggle-lockdown', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Export all user data
+  exportUsers: async (token, type = 'users') => {
+    return apiCall(`/emergency/export-users?type=${type}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Generate system report
+  generateReport: async (token) => {
+    return apiCall('/emergency/system-report', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Get emergency statistics
+  getStats: async (token) => {
+    return apiCall('/emergency/stats', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
   },
 };
 

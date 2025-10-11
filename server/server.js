@@ -49,6 +49,16 @@ app.use('/api/ocr', ocrRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/security-alerts', securityAlertRoutes);
 app.use('/api/roles', roleRoutes);
+// Debug middleware for emergency routes
+app.use('/api/emergency', (req, res, next) => {
+  // console.log('[DEBUG] Emergency route hit:', {
+  //   method: req.method,
+  //   path: req.path,
+  //   body: req.body,
+  //   headers: req.headers['content-type']
+  // });
+  next();
+});
 app.use('/api/emergency', emergencyControlRoutes);
 app.use('/api/locations', locationTrackingRoutes);
 app.use('/api/insider', insiderMonitoringRoutes);

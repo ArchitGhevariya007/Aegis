@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { CheckCircle } from 'lucide-react';
+import { checkLockdown } from '../../utils/lockdownHandler';
 
 const UserIcon = ({ className = "w-4 h-4" }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -34,6 +35,12 @@ export default function ProfileInformation() {
                     'Authorization': `Bearer ${token}`
                 }
             });
+
+            // Check for system lockdown
+            const isLockdown = await checkLockdown(response.clone());
+            if (isLockdown) {
+                return; // checkLockdown handles redirect
+            }
 
             if (response.ok) {
                 const data = await response.json();

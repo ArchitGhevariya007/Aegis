@@ -73,7 +73,15 @@ export default function LoginPage() {
     } catch (error) {
       console.error("Login error:", error);
       setErrorCount(errorCount + 1);
-      setErrors({ general: "Login failed: " + error.message });
+      
+      // Special handling for lockdown errors
+      if (error.lockdown === true || error.message.includes('lockdown')) {
+        setErrors({ 
+          general: "🔒 System Lockdown Active\n\nAll user logins are currently disabled. The system is under lockdown for security reasons.\n\nPlease contact your administrator for assistance." 
+        });
+      } else {
+        setErrors({ general: "Login failed: " + error.message });
+      }
     } finally {
       setLoading(false);
     }

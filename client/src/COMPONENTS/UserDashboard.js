@@ -28,6 +28,9 @@ export default function UserDashboard() {
     const navigate = useNavigate();
 
     const handleLogout = () => {
+        // Clear all auth data
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
         navigate("/login");
     };
 

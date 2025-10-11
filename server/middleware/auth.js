@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const EmergencyControl = require('../models/EmergencyControl');
 
 const auth = async (req, res, next) => {
   try {
@@ -29,12 +30,25 @@ const auth = async (req, res, next) => {
       });
     }
 
-    // Attach both user and decoded token data (including sessionId)
-    req.user = {
-      ...user.toObject(),
-      userId: decoded.userId,
-      sessionId: decoded.sessionId
-    };
+    // Check for system lockdown (block all regular users, but allow admins)
+    const activeLockdown = await EmergencyControl.findOne({
+      type: 'system_lockdown',
+      status: 'active'
+    });
+
+    if (activeLockdown) {
+      return res.status(403).json({
+        success: false,
+        message: 'System is currently in lockdown mode. All user access is temporarily disabled.',
+        lockdown: true
+      });
+    }
+
+    // Attach user as Mongoose document (needed for .id() method)
+    // Also attach decoded data separately
+    req.user = user;
+    req.userId = decoded.userId;
+    req.sessionId = decoded.sessionId;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

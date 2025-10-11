@@ -238,7 +238,7 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
         </div>
       )} */}
 
-      {!error && mapData.totalLocations === 0 && !loading && (
+      {/* {!error && mapData.totalLocations === 0 && !loading && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg">
           <div className="flex items-start gap-2">
             <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -254,7 +254,7 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Interactive Leaflet Map */}
       <div 

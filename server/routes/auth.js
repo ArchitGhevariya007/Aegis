@@ -190,6 +190,22 @@ router.post('/login', validateLogin, async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
 
+    // Check for system lockdown BEFORE allowing login
+    const EmergencyControl = require('../models/EmergencyControl');
+    const activeLockdown = await EmergencyControl.findOne({
+      type: 'system_lockdown',
+      status: 'active'
+    });
+
+    if (activeLockdown) {
+      console.log('[LOCKDOWN] Login attempt blocked - system in lockdown mode');
+      return res.status(403).json({
+        success: false,
+        message: '🔒 System is currently in lockdown mode. All user login attempts are blocked. Please contact your administrator.',
+        lockdown: true
+      });
+    }
+
     // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
@@ -315,8 +331,8 @@ router.post('/login', validateLogin, async (req, res) => {
 // POST /api/auth/logout
 router.post('/logout', auth, async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const sessionId = req.user.sessionId;
+    const userId = req.userId;
+    const sessionId = req.sessionId;
 
     // Mark the session as inactive
     await LoginLocation.updateOne(
