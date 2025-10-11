@@ -46,7 +46,7 @@ export default function AdminDashboard() {
         { key: "overview", label: "Overview" },
         { key: "location", label: "Location Map" },
         { key: "alerts", label: "Security Alerts" },
-        { key: "roles", label: "Role Views" },
+        { key: "roles", label: "Manage Roles" },
         { key: "emergency", label: "Emergency" },
         // { key: "insider", label: "Insider Monitor" },
     ];

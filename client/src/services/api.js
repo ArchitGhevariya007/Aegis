@@ -229,6 +229,73 @@ export const emergencyAPI = {
   },
 };
 
+// Department API calls
+export const departmentAPI = {
+  // Get all departments
+  getAll: async (token) => {
+    return apiCall('/departments', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Get single department
+  getById: async (id, token) => {
+    return apiCall(`/departments/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Update department permissions
+  updatePermissions: async (id, permissions, token) => {
+    return apiCall(`/departments/${id}/permissions`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ permissions }),
+    });
+  },
+
+  // Toggle specific permission field
+  toggleField: async (id, categoryIndex, fieldIndex, enabled, token) => {
+    console.log('[API] Toggle field:', { id, categoryIndex, fieldIndex, enabled });
+    return apiCall(`/departments/${id}/permissions/toggle`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ categoryIndex, fieldIndex, enabled }),
+    });
+  },
+
+  // Toggle entire category
+  toggleCategory: async (id, categoryIndex, enabled, token) => {
+    console.log('[API] Toggle category:', { id, categoryIndex, enabled });
+    return apiCall(`/departments/${id}/permissions/category`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ categoryIndex, enabled }),
+    });
+  },
+
+  // Get permissions summary
+  getSummary: async (id, token) => {
+    return apiCall(`/departments/${id}/summary`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+};
+
 // Local storage helpers
 export const storage = {
   setToken: (token) => localStorage.setItem('authToken', token),

@@ -16,6 +16,7 @@ const roleRoutes = require('./routes/roleRoutes');
 const emergencyControlRoutes = require('./routes/emergencyControlRoutes');
 const locationTrackingRoutes = require('./routes/locationTrackingRoutes');
 const insiderMonitoringRoutes = require('./routes/insiderMonitoringRoutes');
+const departmentRoutes = require('./routes/departmentRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -62,6 +63,7 @@ app.use('/api/emergency', (req, res, next) => {
 app.use('/api/emergency', emergencyControlRoutes);
 app.use('/api/locations', locationTrackingRoutes);
 app.use('/api/insider', insiderMonitoringRoutes);
+app.use('/api/departments', departmentRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -87,6 +89,7 @@ app.use('*', (req, res) => {
 
 // Import admin initialization
 const { initializeAdmin } = require('./models/Admin');
+const { initializeDepartments } = require('./models/Department');
 
 // Start server after database connection
 const startServer = async () => {
@@ -96,6 +99,9 @@ const startServer = async () => {
     
     // Initialize admin account
     await initializeAdmin();
+    
+    // Initialize departments
+    await initializeDepartments();
     
     // Start Express server
     app.listen(PORT, () => {
