@@ -41,6 +41,7 @@ export default function RegistrationFlow() {
     confirmPassword: "",
     birthDate: "",
     residency: "",
+    phoneNumber: "",
     kycStatus: "pending",
     documents: [],
     faceData: {
@@ -721,7 +722,22 @@ function Step1Basic({ user, setUser, onNext, canNext, errors }) {
             <p className="mt-1 text-xs text-red-500">{errors.birthDate}</p>
           )}
         </div>
-
+        <div>
+          <label className="text-sm text-slate-600">Phone Number</label>
+          <input
+            type="tel"
+            value={user.phoneNumber}
+            onChange={(e) => setUser((u) => ({ ...u, phoneNumber: e.target.value }))}
+            placeholder="+61 234 567 890"
+            className={cx(
+              "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
+              errors.phoneNumber ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
+            )}
+          />
+          {errors.phoneNumber && (
+            <p className="mt-1 text-xs text-red-500">{errors.phoneNumber}</p>
+          )}
+        </div>
         <div>
           <label className="text-sm text-slate-600">Select Residency</label>
           <div className="relative mt-2">
@@ -748,6 +764,8 @@ function Step1Basic({ user, setUser, onNext, canNext, errors }) {
             <p className="mt-1 text-xs text-red-500">{errors.residency}</p>
           )}
         </div>
+
+
       </div>
 
       <div className="mt-6">

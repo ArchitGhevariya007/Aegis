@@ -104,6 +104,7 @@ export default function DocumentManager() {
     const [showLoadingModal, setShowLoadingModal] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     const [customFileName, setCustomFileName] = useState('');
+    const [documentCategory, setDocumentCategory] = useState('');
     const [viewingDocument, setViewingDocument] = useState(null);
     const [deleting, setDeleting] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
@@ -111,6 +112,18 @@ export default function DocumentManager() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [documentToDelete, setDocumentToDelete] = useState(null);
     const [modalType, setModalType] = useState(''); // 'upload', 'download', 'delete', etc.
+    
+    // Document categories
+    const documentCategories = [
+        'Medical History',
+        'Insurance Policy',
+        'Tax Returns',
+        'Payslips',
+        'Passport',
+        'Visa',
+        'Criminal History',
+        'Work Permit'
+    ];
 
     // Helper function to remove extension from display name
     const getDisplayName = (fileName) => {
@@ -182,6 +195,7 @@ export default function DocumentManager() {
 
         setSelectedFile(file);
         setCustomFileName(nameWithoutExt); // Set name without extension for user to edit
+        setDocumentCategory(''); // Reset category
         setShowNameModal(true);
         
         // Reset the input
@@ -189,7 +203,7 @@ export default function DocumentManager() {
     };
 
     const handleFileUpload = async () => {
-        if (!selectedFile || !customFileName.trim()) return;
+        if (!selectedFile || !customFileName.trim() || !documentCategory) return;
 
         setUploading(true);
         setShowNameModal(false);
@@ -205,6 +219,7 @@ export default function DocumentManager() {
             const formData = new FormData();
             formData.append('document', selectedFile, finalFileName);
             formData.append('customName', finalFileName);
+            formData.append('documentCategory', documentCategory);
 
             const token = localStorage.getItem('authToken');
             const response = await fetch('http://localhost:5000/api/auth/upload-document', {
@@ -452,6 +467,11 @@ export default function DocumentManager() {
                                         </div>
                                         <div className="min-w-0">
                                             <p className="font-medium text-slate-800 text-sm lg:text-base">{getDisplayName(doc.fileName)}</p>
+                                            {doc.documentCategory && (
+                                                <p className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded inline-block mb-1">
+                                                    {doc.documentCategory}
+                                                </p>
+                                            )}
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="text-xs lg:text-sm text-slate-500">
                                                     Uploaded: {new Date(doc.uploadDate).toLocaleDateString()}
@@ -475,11 +495,11 @@ export default function DocumentManager() {
                                                     </span>
                                                 )}
                                             </div>
-                                            {isBlockchainStored && doc.blockchainData.ipfsHash && (
+                                            {/* {isBlockchainStored && doc.blockchainData.ipfsHash && (
                                                 <p className="text-xs text-slate-400 mt-1">
                                                     IPFS: {doc.blockchainData.ipfsHash.substring(0, 12)}...
                                                 </p>
-                                            )}
+                                            )} */}
                                         </div>
                                     </div>
                                     <div className="flex gap-2 sm:flex-shrink-0">
@@ -615,6 +635,27 @@ export default function DocumentManager() {
                                         autoFocus
                                     />
                                 </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Document Category <span className="text-red-600">*</span>
+                                    </label>
+                                    <select
+                                        value={documentCategory}
+                                        onChange={(e) => setDocumentCategory(e.target.value)}
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700"
+                                        required
+                                    >
+                                        <option value="">Select a category</option>
+                                        {documentCategories.map((category) => (
+                                            <option key={category} value={category}>
+                                                {category}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-slate-500 mt-1">Choose the type of document you're uploading</p>
+                                </div>
+                                
                                 <div className="text-xs text-slate-500">
                                     <strong>Selected file:</strong> {selectedFile?.name}
                                 </div>
@@ -625,6 +666,7 @@ export default function DocumentManager() {
                                         setShowNameModal(false);
                                         setSelectedFile(null);
                                         setCustomFileName('');
+                                        setDocumentCategory('');
                                     }}
                                     className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
                                 >
@@ -632,7 +674,7 @@ export default function DocumentManager() {
                                 </button>
                                 <button
                                     onClick={handleFileUpload}
-                                    disabled={!customFileName.trim() || uploading}
+                                    disabled={!customFileName.trim() || !documentCategory || uploading}
                                     className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     {uploading ? 'Uploading...' : 'Upload'}

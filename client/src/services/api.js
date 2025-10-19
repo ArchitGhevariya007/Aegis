@@ -66,25 +66,32 @@ export const authAPI = {
     });
   },
 
-  // User login (unified for both user and admin)
+  // User login (unified for user, admin, and department)
   login: async (email, password) => {
-    // First check if this is an admin
     try {
-      const checkResult = await authAPI.checkAdmin(email);
-      
-      if (checkResult.isAdmin) {
-        // Login as admin
-        return apiCall('/admin/login', {
-          method: 'POST',
-          body: JSON.stringify({ email, password }),
-        });
-      } else {
-        // Login as regular user
-        return apiCall('/auth/login', {
+      // Check if this is a department login
+      const isDepartment = email.match(/@(immi|income|medical)\.com$/);
+      if (isDepartment) {
+        return apiCall('/departments/login', {
           method: 'POST',
           body: JSON.stringify({ email, password }),
         });
       }
+
+      // Check if this is an admin
+      const checkResult = await authAPI.checkAdmin(email);
+      if (checkResult.isAdmin) {
+        return apiCall('/admin/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+      }
+
+      // Regular user login
+      return apiCall('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -231,27 +238,27 @@ export const emergencyAPI = {
 
 // Department API calls
 export const departmentAPI = {
-  // Get all departments
+  // Get all departments (admin)
   getAll: async (token) => {
-    return apiCall('/departments', {
+    return apiCall('/departments/admin/all', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
   },
 
-  // Get single department
+  // Get single department (admin)
   getById: async (id, token) => {
-    return apiCall(`/departments/${id}`, {
+    return apiCall(`/departments/admin/${id}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
   },
 
-  // Update department permissions
+  // Update department permissions (admin)
   updatePermissions: async (id, permissions, token) => {
-    return apiCall(`/departments/${id}/permissions`, {
+    return apiCall(`/departments/admin/${id}/permissions`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -260,10 +267,10 @@ export const departmentAPI = {
     });
   },
 
-  // Toggle specific permission field
+  // Toggle specific permission field (admin)
   toggleField: async (id, categoryIndex, fieldIndex, enabled, token) => {
     console.log('[API] Toggle field:', { id, categoryIndex, fieldIndex, enabled });
-    return apiCall(`/departments/${id}/permissions/toggle`, {
+    return apiCall(`/departments/admin/${id}/toggle-field`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -273,10 +280,10 @@ export const departmentAPI = {
     });
   },
 
-  // Toggle entire category
+  // Toggle entire category (admin)
   toggleCategory: async (id, categoryIndex, enabled, token) => {
     console.log('[API] Toggle category:', { id, categoryIndex, enabled });
-    return apiCall(`/departments/${id}/permissions/category`, {
+    return apiCall(`/departments/admin/${id}/toggle-category`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -286,9 +293,9 @@ export const departmentAPI = {
     });
   },
 
-  // Get permissions summary
-  getSummary: async (id, token) => {
-    return apiCall(`/departments/${id}/summary`, {
+  // Get permissions summary (admin)
+  getSummary: async (token) => {
+    return apiCall('/departments/admin/summary/all', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },

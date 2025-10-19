@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, AlertTriangle, Info, CheckCircle, Lock, Shield, AlertCircle } from 'lucide-react';
+import { X, AlertTriangle, Info, CheckCircle, Lock, Shield } from 'lucide-react';
 
 export default function Modal({ 
   isOpen, 

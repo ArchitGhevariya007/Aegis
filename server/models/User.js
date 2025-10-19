@@ -22,6 +22,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  phoneNumber: {
+    type: String
+  },
   kycStatus: {
     type: String,
     enum: ['pending', 'document_uploaded', 'liveness_verified', 'face_matched', 'completed'],
@@ -33,6 +36,7 @@ const userSchema = new mongoose.Schema({
       enum: ['id_document', 'id_face', 'live_face', 'id_card', 'passport', 'drivers_license', 'additional']
     },
     fileName: String,
+    documentCategory: String, // Document category for department permissions
     filePath: String,
     uploadDate: {
       type: Date,

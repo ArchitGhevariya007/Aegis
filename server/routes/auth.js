@@ -42,7 +42,7 @@ const generateToken = (userId) => {
 // POST /api/auth/register
 router.post('/register', validateRegistration, async (req, res) => {
   try {
-    const { email, password, birthDate, residency, idFaceImage, liveFaceImage, ocrData, documentData } = req.body;
+    const { email, password, birthDate, residency, phoneNumber, idFaceImage, liveFaceImage, ocrData, documentData } = req.body;
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
 
@@ -100,6 +100,7 @@ router.post('/register', validateRegistration, async (req, res) => {
       password,
       birthDate: new Date(birthDate),
       residency,
+      phoneNumber: phoneNumber || null,
       kycStatus: 'completed',
       isActive: true,
       faceData: {
@@ -457,9 +458,29 @@ router.get('/user-documents', auth, async (req, res) => {
 // GET /api/auth/access-logs
 router.get('/access-logs', auth, async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const logs = req.user.accessLogs || [];
+    const totalLogs = logs.length;
+    const totalPages = Math.ceil(totalLogs / limit);
+    
+    // Sort by timestamp (newest first) and paginate
+    const sortedLogs = logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const paginatedLogs = sortedLogs.slice(skip, skip + limit);
+
     res.json({
       success: true,
-      logs: req.user.accessLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)) || []
+      logs: paginatedLogs,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalLogs,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+        limit
+      }
     });
   } catch (error) {
     console.error('Access logs fetch error:', error);
@@ -648,11 +669,12 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
 
     // Use custom name if provided, otherwise use original filename
     const customName = req.body.customName;
+    const documentCategory = req.body.documentCategory; // Get document category
     const finalFileName = customName && customName.trim() ? 
       customName.trim() : 
       req.file.originalname;
 
-    console.log(`📄 Starting blockchain upload for: ${finalFileName} (original: ${req.file.originalname})`);
+    console.log(`📄 Starting blockchain upload for: ${finalFileName} (Category: ${documentCategory}, original: ${req.file.originalname})`);
     
     // Read file buffer
     const fileBuffer = fs.readFileSync(req.file.path);
@@ -669,6 +691,7 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
       const newDocument = {
         type: 'additional',
         fileName: finalFileName,
+        documentCategory: documentCategory || 'Uncategorized', // Store document category
         filePath: req.file.path, // Keep local copy as backup
         uploadDate: new Date(),
         verified: blockchainResult.verified,
@@ -960,7 +983,7 @@ router.get('/view-document/:documentId', auth, async (req, res) => {
   }
 });
 
-// POST /api/auth/download-digital-id
+// GET /api/auth/download-digital-id
 router.get('/download-digital-id', auth, async (req, res) => {
   try {
     // Check if user has completed KYC
@@ -971,7 +994,9 @@ router.get('/download-digital-id', auth, async (req, res) => {
       });
     }
 
-    // Generate a simple digital ID document (in a real app, this would be more sophisticated)
+    const PDFDocument = require('pdfkit');
+    
+    // Generate a PDF digital ID document
     const digitalIdData = {
       name: req.user.email.split('@')[0],
       email: req.user.email,
@@ -983,9 +1008,162 @@ router.get('/download-digital-id', auth, async (req, res) => {
       digitalSignature: 'DIGITAL_ID_' + req.user._id
     };
 
-    res.setHeader('Content-Disposition', 'attachment; filename="digital-id.json"');
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(digitalIdData, null, 2));
+    // Create PDF document
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 50,
+      info: {
+        Title: 'Digital Identity Card',
+        Author: 'Aegis Digital Identity System',
+        Subject: 'Blockchain Verified Digital Identity',
+        Creator: 'Aegis Platform'
+      }
+    });
+
+    // Set response headers for PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="digital-id.pdf"');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+    // Pipe PDF to response
+    doc.pipe(res);
+
+    // Gradient background
+    const gradient = doc.linearGradient(0, 50, 0, 800)
+      .stop(0, '#6a11cb')
+      .stop(1, '#2575fc');
+    doc.rect(0, 0, 595, 842)
+       .fill(gradient)
+       .fill();
+
+    // Main white card with rounded corners
+    const cardX = 50;
+    const cardY = 100;
+    const cardWidth = 495;
+    const cardHeight = 600;
+
+    // Card shadow and main card
+    doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 15)
+       .fillColor('white')
+       .fill();
+
+    // Card border
+    doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 15)
+       .strokeColor('#667eea')
+       .lineWidth(2)
+       .stroke();
+
+    // Header section
+    doc.rect(cardX, cardY, cardWidth, 100)
+       .fillColor('#667eea')
+       .fill();
+
+    // Title
+    doc.fillColor('white')
+       .fontSize(28)
+       .font('Helvetica-Bold')
+       .text('Digital Identity Card', cardX, cardY + 30, { 
+         align: 'center', 
+         width: cardWidth
+       });
+
+    // Verification status
+    doc.fillColor('white')
+       .fontSize(16)
+       .font('Helvetica-Bold')
+       .text('✓ Blockchain Verified', cardX, cardY + 60, { 
+         align: 'center', 
+         width: cardWidth
+       });
+
+    // Content area
+    let yPosition = cardY + 130;
+    const fieldSpacing = 30;
+
+    const fields = [
+      { label: 'Full Name:', value: digitalIdData.name },
+      { label: 'Email:', value: digitalIdData.email },
+      { label: 'Date of Birth:', value: new Date(digitalIdData.birthDate).toLocaleDateString() },
+      { label: 'Residency:', value: digitalIdData.residency },
+      { label: 'Verification Status:', value: digitalIdData.kycStatus.toUpperCase() },
+      { label: 'Issued Date:', value: new Date(digitalIdData.issuedAt).toLocaleDateString() }
+    ];
+
+    fields.forEach(field => {
+      // Field container
+      doc.roundedRect(cardX + 20, yPosition - 5, cardWidth - 40, 30, 5)
+         .fillColor('#f8fafc')
+         .fill();
+
+      doc.roundedRect(cardX + 20, yPosition - 5, cardWidth - 40, 30, 5)
+         .strokeColor('#e2e8f0')
+         .lineWidth(0.5)
+         .stroke();
+
+      // Label
+      doc.fillColor('#374151')
+         .fontSize(12)
+         .font('Helvetica-Bold')
+         .text(field.label, cardX + 30, yPosition);
+      
+      // Value
+      doc.fillColor('#1f2937')
+         .fontSize(12)
+         .font('Helvetica')
+         .text(field.value, cardX + 200, yPosition);
+      
+      yPosition += fieldSpacing;
+    });
+
+    // Digital signature section
+    yPosition += 20;
+    
+    doc.fillColor('#374151')
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('Digital Signature:', cardX, yPosition);
+    
+    yPosition += 25;
+
+    // Signature container
+    doc.roundedRect(cardX + 20, yPosition - 5, cardWidth - 40, 50, 5)
+       .fillColor('#f1f5f9')
+       .fill();
+
+    doc.roundedRect(cardX + 20, yPosition - 5, cardWidth - 40, 50, 5)
+       .strokeColor('#cbd5e1')
+       .lineWidth(1)
+       .stroke();
+
+    doc.fillColor('#475569')
+       .fontSize(10)
+       .font('Courier')
+       .text(digitalIdData.digitalSignature, cardX + 30, yPosition + 10, { 
+         width: cardWidth - 60,
+         align: 'center'
+       });
+
+    // Footer
+    const footerY = cardY + cardHeight - 60;
+    
+    doc.fillColor('#64748b')
+       .fontSize(10)
+       .font('Helvetica')
+       .text('This digital identity card is blockchain verified and tamper-proof.', 
+             cardX, footerY, { 
+               align: 'center', 
+               width: cardWidth
+             });
+    
+    doc.text('Generated by Aegis Digital Identity System', 
+             cardX, footerY + 20, { 
+               align: 'center', 
+               width: cardWidth
+             });
+
+    // Finalize PDF
+    doc.end();
+
   } catch (error) {
     console.error('Digital ID download error:', error);
     res.status(500).json({

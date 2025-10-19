@@ -1,29 +1,32 @@
 import React, { useState, useEffect } from "react";
-
-const EyeIcon = ({ className = "w-4 h-4" }) => (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-);
+import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
 
 export default function AccessLogViewer() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [pagination, setPagination] = useState({
+        currentPage: 1,
+        totalPages: 1,
+        totalLogs: 0,
+        hasNextPage: false,
+        hasPrevPage: false,
+        limit: 10
+    });
 
     useEffect(() => {
-        fetchAccessLogs();
+        fetchAccessLogs(1);
     }, []);
 
-    const fetchAccessLogs = async () => {
+    const fetchAccessLogs = async (page = 1) => {
         try {
+            setLoading(true);
             const token = localStorage.getItem('authToken');
             if (!token) {
                 setLoading(false);
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/auth/access-logs', {
+            const response = await fetch(`http://localhost:5000/api/auth/access-logs?page=${page}&limit=10`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -32,6 +35,7 @@ export default function AccessLogViewer() {
             if (response.ok) {
                 const data = await response.json();
                 setLogs(data.logs || []);
+                setPagination(data.pagination || pagination);
             } else {
                 console.error('Failed to fetch access logs');
             }
@@ -39,6 +43,12 @@ export default function AccessLogViewer() {
             console.error('Error fetching access logs:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= pagination.totalPages) {
+            fetchAccessLogs(newPage);
         }
     };
 
@@ -73,7 +83,7 @@ export default function AccessLogViewer() {
         return (
             <div className="p-4 lg:p-6 bg-white rounded-2xl shadow">
                 <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <EyeIcon className="w-5 h-5" />
+                    <Eye className="w-5 h-5" />
                     Access Log Viewer
                 </h2>
                 <div className="text-center py-8">
@@ -86,14 +96,19 @@ export default function AccessLogViewer() {
 
     return (
         <div className="p-4 lg:p-6 bg-white rounded-2xl shadow">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <EyeIcon className="w-5 h-5" />
-                Access Log Viewer
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <Eye className="w-5 h-5" />
+                    Access Log Viewer
+                </h2>
+                <div className="text-sm text-slate-500">
+                    Showing {logs.length} of {pagination.totalLogs} logs
+                </div>
+            </div>
             
             {logs.length === 0 ? (
                 <div className="text-center py-8">
-                    <EyeIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <Eye className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-500">No access logs found</p>
                 </div>
             ) : (
@@ -187,6 +202,72 @@ export default function AccessLogViewer() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    {pagination.totalPages > 1 && (
+                        <div className="mt-6 flex items-center justify-between">
+                            <div className="text-sm text-slate-500">
+                                Page {pagination.currentPage} of {pagination.totalPages}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                                    disabled={!pagination.hasPrevPage}
+                                    className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        pagination.hasPrevPage
+                                            ? 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'
+                                            : 'text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed'
+                                    }`}
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    Previous
+                                </button>
+                                
+                                {/* Page Numbers */}
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                                        let pageNum;
+                                        if (pagination.totalPages <= 5) {
+                                            pageNum = i + 1;
+                                        } else if (pagination.currentPage <= 3) {
+                                            pageNum = i + 1;
+                                        } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                                            pageNum = pagination.totalPages - 4 + i;
+                                        } else {
+                                            pageNum = pagination.currentPage - 2 + i;
+                                        }
+                                        
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => handlePageChange(pageNum)}
+                                                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                                    pageNum === pagination.currentPage
+                                                        ? 'bg-indigo-600 text-white'
+                                                        : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                                    disabled={!pagination.hasNextPage}
+                                    className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        pagination.hasNextPage
+                                            ? 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'
+                                            : 'text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed'
+                                    }`}
+                                >
+                                    Next
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
         </div>

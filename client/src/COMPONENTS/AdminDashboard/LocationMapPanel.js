@@ -151,9 +151,9 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
   };
 
   if (loading) {
-    return (
-      <div className="p-6 bg-white rounded-2xl shadow w-full">
-        <h2 className="text-lg font-semibold mb-4">Login Location Map</h2>
+  return (
+    <div className="p-6 bg-white rounded-2xl shadow w-full">
+      <h2 className="text-lg font-semibold mb-4">Login Location Map</h2>
         <div className={`flex items-center justify-center ${miniMode ? 'h-64' : 'h-96'}`}>
           <div className="flex items-center gap-2 text-slate-500">
             <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
@@ -339,8 +339,8 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500"></span>
             <span className="text-sm">Suspicious</span>
-          </div>
-        </div>
+              </div>
+            </div>
       )}
 
       {/* Top Locations Summary */}
@@ -353,9 +353,9 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
                 <p className="text-sm text-slate-700 font-medium mt-1">{location.city}</p>
                 <p className="text-xs text-slate-500">{location.country}</p>
               </div>
-            </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
       )}
 
       {/* Recent Activity */}
