@@ -8,6 +8,7 @@ import EmergencyPanel from "./AdminDashboard/EmergencyPanel";
 import LocationMapPanel from "./AdminDashboard/LocationMapPanel";
 import InsiderMonitorPanel from "./AdminDashboard/InsiderMonitorPanel";
 import EmergencySummary from "./AdminDashboard/EmergencySummary";
+import VotingPanel from "./AdminDashboard/VotingPanel";
 
 
 // Example icon for Admin
@@ -48,6 +49,7 @@ export default function AdminDashboard() {
         { key: "alerts", label: "Security Alerts" },
         { key: "roles", label: "Manage Roles" },
         { key: "emergency", label: "Emergency" },
+        { key: "voting", label: "Voting System" },
         // { key: "insider", label: "Insider Monitor" },
     ];
 
@@ -146,6 +148,7 @@ export default function AdminDashboard() {
                 {activeTab === "roles" && <RoleViewsPanel />}
                 {activeTab === "emergency" && <EmergencyPanel />}
                 {activeTab === "location" && <LocationMapPanel />}
+                {activeTab === "voting" && <VotingPanel />}
                 {activeTab === "insider" && <InsiderMonitorPanel />}
 
 

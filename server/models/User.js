@@ -48,9 +48,11 @@ const userSchema = new mongoose.Schema({
     },
     ocrData: {
       name: String,
-      dob: Date,
+      dob: String, // Changed from Date to String to match OCR extraction format
       documentType: String,
-      address: String
+      address: String,
+      idNumber: String,
+      nationality: String
     },
     blockchainData: {
       blockchainStored: {

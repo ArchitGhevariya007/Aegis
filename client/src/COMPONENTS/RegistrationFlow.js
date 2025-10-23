@@ -421,10 +421,15 @@ export default function RegistrationFlow() {
     try {
       console.log('Registration data:', {
         email: user.email,
+        phoneNumber: user.phoneNumber,
+        birthDate: user.birthDate,
+        residency: user.residency,
         hasIdImage: !!user.faceData.idFaceImage,
         hasLiveImage: !!user.faceData.liveFaceImage,
         idImageLength: user.faceData.idFaceImage?.length || 0,
-        liveImageLength: user.faceData.liveFaceImage?.length || 0
+        liveImageLength: user.faceData.liveFaceImage?.length || 0,
+        ocrData: ocrEditable,
+        documentData: user.documents[0]
       });
 
       // Call the registration API with face images and OCR data
@@ -433,6 +438,7 @@ export default function RegistrationFlow() {
         password: user.password,
         birthDate: user.birthDate,
         residency: user.residency,
+        phoneNumber: user.phoneNumber,
         idFaceImage: user.faceData.idFaceImage,
         liveFaceImage: user.faceData.liveFaceImage,
         ocrData: ocrEditable, // Include extracted OCR data

@@ -48,12 +48,15 @@ router.post('/register', validateRegistration, async (req, res) => {
 
     console.log('Registration request received:', {
       email,
+      phoneNumber,
       hasIdFaceImage: !!idFaceImage,
       hasLiveFaceImage: !!liveFaceImage,
       idFaceImageLength: idFaceImage?.length || 0,
       liveFaceImageLength: liveFaceImage?.length || 0,
       hasOcrData: !!ocrData,
-      hasDocumentData: !!documentData
+      ocrData: ocrData,
+      hasDocumentData: !!documentData,
+      documentData: documentData
     });
 
     // Check if user already exists
@@ -114,28 +117,23 @@ router.post('/register', validateRegistration, async (req, res) => {
           type: 'id_face',
           fileName: 'id_face_image.jpg',
           filePath: faceComparison.idCroppedFace,
-          verified: true
+          verified: true,
+          // Attach OCR data to the ID face document
+          ocrData: ocrData ? {
+            name: ocrData.name || null,
+            dob: ocrData.dob || null, // Keep as string, don't convert to Date
+            idNumber: ocrData.idNumber || null,
+            documentType: ocrData.documentType || null,
+            address: ocrData.address || null,
+            nationality: ocrData.nationality || null
+          } : {}
         },
         {
           type: 'live_face',
           fileName: 'live_face_capture.jpg',
           filePath: faceComparison.liveCroppedFace,
           verified: true
-        },
-        // Add document with OCR data if provided
-        ...(documentData ? [{
-          type: documentData.type?.type || 'id_card',
-          fileName: documentData.fileName || 'uploaded_document',
-          filePath: documentData.filePath || '',
-          verified: true,
-          ocrData: ocrData ? {
-            name: ocrData.name,
-            dob: ocrData.dob ? new Date(ocrData.dob) : null,
-            idNumber: ocrData.idNumber,
-            documentType: ocrData.documentType,
-            address: ocrData.address
-          } : null
-        }] : [])
+        }
       ],
       verificationStatus: {
         documentAuthenticity: true,

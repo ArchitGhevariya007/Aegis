@@ -493,6 +493,359 @@ class BlockchainService {
         return computedHash === documentHash;
     }
     
+    // Get Voting Contract ABI
+    getVotingContractABI() {
+        return [
+            "function castVote(string memory _partyId, bool _faceVerified, bytes32 _userHash) external",
+            "function castVoteFor(address _voter, string memory _partyId, bool _faceVerified, bytes32 _userHash) external",
+            "function startVoting() external",
+            "function stopVoting() external",
+            "function resetVoting() external",
+            "function getVotingStatus() external view returns (bool _isActive, uint256 _totalVotes, uint256 _startTime, uint256 _endTime, uint256 _partyCount)",
+            "function getAllResults() external view returns (string[] memory ids, string[] memory names, string[] memory logos, uint256[] memory voteCounts)",
+            "function hasUserVoted(address _voter) external view returns (bool)",
+            "function getVote(address _voter) external view returns (string memory partyId, uint256 timestamp, bool faceVerified, bytes32 voteHash)",
+            "function getVoterCount() external view returns (uint256)",
+            "function admin() external view returns (address)",
+            "function isActive() external view returns (bool)",
+            "function totalVotes() external view returns (uint256)",
+            "event VoteCast(address indexed voter, string partyId, bytes32 voteHash, uint256 timestamp)",
+            "event VotingStarted(uint256 timestamp)",
+            "event VotingStopped(uint256 timestamp)",
+            "event VotingReset(uint256 timestamp)"
+        ];
+    }
+
+    // Get Voting Contract instance
+    getVotingContract() {
+        const contractAddress = process.env.VOTING_CONTRACT_ADDRESS;
+        if (!contractAddress) {
+            throw new Error('VOTING_CONTRACT_ADDRESS not configured in .env');
+        }
+        
+        const abi = this.getVotingContractABI();
+        return new ethers.Contract(contractAddress, abi, this.wallet);
+    }
+    
+    // Store vote on blockchain using smart contract
+    async storeVoteOnContract(voteData) {
+        try {
+            console.log('🗳️  Storing vote on blockchain smart contract...');
+            
+            const contract = this.getVotingContract();
+            
+            // Create user hash (maintains privacy)
+            const userHash = ethers.id(voteData.userId);
+            
+            // Convert user ID to deterministic blockchain address
+            const voterAddress = this.userToBlockchainAddress(voteData.userId);
+            
+            console.log(`   User: ${voteData.userId.substring(0, 8)}... → Address: ${voterAddress}`);
+            console.log(`   Party: ${voteData.partyId}, FaceVerified: ${voteData.faceVerified}`);
+            console.log(`   Contract: ${await contract.getAddress()}`);
+            
+            // Debug: Check if function exists
+            console.log(`   Contract has castVoteFor:`, typeof contract.castVoteFor);
+            console.log(`   Contract interface:`, contract.interface.fragments.map(f => f.name).filter(n => n));
+            
+            // Check if voting is active first
+            const isActive = await contract.isActive();
+            console.log(`   Voting Active: ${isActive}`);
+            
+            if (!isActive) {
+                throw new Error('Voting session is not active on blockchain');
+            }
+            
+            // Cast vote on smart contract using admin function
+            console.log(`   Calling castVoteFor with:`, {
+                voter: voterAddress,
+                partyId: voteData.partyId,
+                faceVerified: voteData.faceVerified,
+                userHash: userHash.substring(0, 20) + '...'
+            });
+            
+            // Manually encode and send transaction to avoid ethers.js async issues
+            const encodedData = contract.interface.encodeFunctionData('castVoteFor', [
+                voterAddress,
+                voteData.partyId,
+                voteData.faceVerified,
+                userHash
+            ]);
+            console.log(`   Encoded data length: ${encodedData.length}`);
+            console.log(`   Encoded data (first 20 chars): ${encodedData.substring(0, 20)}`);
+            
+            // Send raw transaction instead of using contract method
+            const txRequest = {
+                to: await contract.getAddress(),
+                data: encodedData,
+                gasLimit: 300000, // Increased gas limit
+                gasPrice: ethers.parseUnits('30', 'gwei')
+            };
+            
+            console.log(`   Sending transaction with data: ${txRequest.data.substring(0, 20)}...`);
+            const tx = await this.wallet.sendTransaction(txRequest);
+            
+            console.log('⏳ Waiting for transaction confirmation...');
+            const receipt = await tx.wait();
+            
+            // Extract vote hash from event
+            let voteHash = null;
+            if (receipt.logs && receipt.logs.length > 0) {
+                const voteCastEvent = receipt.logs.find(log => {
+                    try {
+                        const parsed = contract.interface.parseLog(log);
+                        return parsed && parsed.name === 'VoteCast';
+                    } catch (e) {
+                        return false;
+                    }
+                });
+                
+                if (voteCastEvent) {
+                    const parsed = contract.interface.parseLog(voteCastEvent);
+                    voteHash = parsed.args.voteHash;
+                }
+            }
+            
+            console.log(`✅ Vote stored on blockchain: ${receipt.hash}`);
+            
+            return {
+                transactionHash: receipt.hash,
+                blockNumber: receipt.blockNumber.toString(),
+                voteHash: voteHash || userHash,
+                timestamp: new Date().toISOString(),
+                verified: true,
+                contractAddress: await contract.getAddress()
+            };
+        } catch (error) {
+            console.error('Blockchain vote storage error:', error);
+            
+            // Provide helpful error messages
+            if (error.message.includes('Already voted')) {
+                throw new Error('User has already voted in this session');
+            } else if (error.message.includes('Voting is not active')) {
+                throw new Error('Voting session is not active');
+            } else if (error.message.includes('Face verification required')) {
+                throw new Error('Face verification is required to vote');
+            }
+            
+            throw new Error(`Failed to store vote on blockchain: ${error.message}`);
+        }
+    }
+    
+    // Legacy method for backward compatibility (redirects to contract)
+    async storeVote(voteData) {
+        // Check if voting contract is configured
+        if (process.env.VOTING_CONTRACT_ADDRESS) {
+            return await this.storeVoteOnContract(voteData);
+        }
+        
+        // Fallback to simple transaction method
+        try {
+            console.log('🗳️  Storing vote on blockchain (legacy mode)...');
+            
+            const voteHash = crypto.createHash('sha256')
+                .update(JSON.stringify({
+                    sessionId: voteData.sessionId,
+                    partyId: voteData.partyId,
+                    timestamp: voteData.timestamp,
+                    faceVerified: voteData.faceVerified
+                }))
+                .digest('hex');
+            
+            const nonce = await this.provider.getTransactionCount(this.wallet.address);
+            const voteDataHex = ethers.hexlify(
+                ethers.toUtf8Bytes(`VOTE:${voteHash.substring(0, 32)}`)
+            );
+            
+            const transaction = {
+                to: this.wallet.address,
+                value: ethers.parseEther('0'),
+                data: voteDataHex,
+                gasLimit: 25000,
+                gasPrice: ethers.parseUnits('30', 'gwei'),
+                nonce: nonce
+            };
+            
+            const signedTx = await this.wallet.sendTransaction(transaction);
+            const receipt = await signedTx.wait();
+            
+            console.log(`✅ Vote stored on blockchain: ${receipt.hash}`);
+            
+            return {
+                transactionHash: receipt.hash,
+                blockNumber: receipt.blockNumber.toString(),
+                voteHash,
+                timestamp: new Date().toISOString(),
+                verified: true
+            };
+        } catch (error) {
+            console.error('Blockchain vote storage error:', error);
+            throw new Error(`Failed to store vote on blockchain: ${error.message}`);
+        }
+    }
+    
+    // ============== Voting Contract Management ==============
+    
+    // Start voting session on contract
+    async startVotingOnContract() {
+        try {
+            console.log('🚀 Starting voting on blockchain...');
+            
+            const contract = this.getVotingContract();
+            
+            // Check current status first
+            const wasActive = await contract.isActive();
+            console.log(`   Current status: ${wasActive ? 'Active' : 'Inactive'}`);
+            
+            if (wasActive) {
+                console.log('⚠️  Voting is already active on blockchain');
+                return {
+                    success: true,
+                    message: 'Voting already active'
+                };
+            }
+            
+            const tx = await contract.startVoting({
+                gasLimit: 100000,
+                gasPrice: ethers.parseUnits('30', 'gwei')
+            });
+            
+            console.log(`   Transaction sent: ${tx.hash}`);
+            const receipt = await tx.wait();
+            
+            // Verify it started
+            const isNowActive = await contract.isActive();
+            console.log(`   New status: ${isNowActive ? 'Active ✅' : 'Still Inactive ⚠️'}`);
+            
+            console.log('✅ Voting started on blockchain');
+            
+            return {
+                success: true,
+                transactionHash: receipt.hash,
+                message: 'Voting session started on blockchain'
+            };
+        } catch (error) {
+            console.error('❌ Failed to start voting on blockchain:', error.message);
+            throw new Error(`Failed to start voting: ${error.message}`);
+        }
+    }
+    
+    // Stop voting session on contract
+    async stopVotingOnContract() {
+        try {
+            const contract = this.getVotingContract();
+            const tx = await contract.stopVoting({
+                gasLimit: 100000
+            });
+            const receipt = await tx.wait();
+            
+            return {
+                success: true,
+                transactionHash: receipt.hash,
+                message: 'Voting session stopped on blockchain'
+            };
+        } catch (error) {
+            throw new Error(`Failed to stop voting: ${error.message}`);
+        }
+    }
+    
+    // Reset voting session on contract
+    async resetVotingOnContract() {
+        try {
+            const contract = this.getVotingContract();
+            const tx = await contract.resetVoting({
+                gasLimit: 500000 // Higher limit for resetting
+            });
+            const receipt = await tx.wait();
+            
+            return {
+                success: true,
+                transactionHash: receipt.hash,
+                message: 'Voting session reset on blockchain'
+            };
+        } catch (error) {
+            throw new Error(`Failed to reset voting: ${error.message}`);
+        }
+    }
+    
+    // Get voting status from contract
+    async getVotingStatusFromContract() {
+        try {
+            const contract = this.getVotingContract();
+            const [isActive, totalVotes, startTime, endTime, partyCount] = await contract.getVotingStatus();
+            
+            return {
+                isActive,
+                totalVotes: Number(totalVotes),
+                startTime: Number(startTime) * 1000, // Convert to milliseconds
+                endTime: Number(endTime) * 1000,
+                partyCount: Number(partyCount)
+            };
+        } catch (error) {
+            throw new Error(`Failed to get voting status: ${error.message}`);
+        }
+    }
+    
+    // Get all results from contract
+    async getResultsFromContract() {
+        try {
+            const contract = this.getVotingContract();
+            const [ids, names, logos, voteCounts] = await contract.getAllResults();
+            
+            const parties = ids.map((id, index) => ({
+                id: id,
+                name: names[index],
+                logo: logos[index],
+                votes: Number(voteCounts[index])
+            }));
+            
+            return parties;
+        } catch (error) {
+            throw new Error(`Failed to get results: ${error.message}`);
+        }
+    }
+    
+    // Check if user has voted on contract
+    async hasUserVotedOnContract(userAddress) {
+        try {
+            const contract = this.getVotingContract();
+            const voted = await contract.hasUserVoted(userAddress);
+            return voted;
+        } catch (error) {
+            throw new Error(`Failed to check vote status: ${error.message}`);
+        }
+    }
+    
+    // Convert user identifier to blockchain address
+    userToBlockchainAddress(userId) {
+        // Create deterministic address from user ID
+        const hash = crypto.createHash('sha256').update(userId.toString()).digest();
+        const addressBytes = hash.slice(0, 20);
+        return '0x' + addressBytes.toString('hex');
+    }
+    
+    // Verify vote on blockchain
+    async verifyVote(transactionHash) {
+        try {
+            const transaction = await this.provider.getTransaction(transactionHash);
+            if (!transaction) {
+                return { verified: false, error: 'Transaction not found' };
+            }
+            
+            const receipt = await this.provider.getTransactionReceipt(transactionHash);
+            
+            return {
+                verified: true,
+                blockNumber: receipt.blockNumber.toString(),
+                timestamp: new Date().toISOString(),
+                confirmations: await transaction.confirmations()
+            };
+        } catch (error) {
+            console.error('Vote verification error:', error);
+            return { verified: false, error: error.message };
+        }
+    }
+    
     // Grant document access to another user
     async grantDocumentAccess(documentId, granteeAddress, userAddress) {
         try {

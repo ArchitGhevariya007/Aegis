@@ -10,7 +10,10 @@
     "blockchain:setup": "node blockchain/scripts/setup-blockchain.js",
     "blockchain:deploy": "cd blockchain/config && npx hardhat run ../scripts/deploy.js --network amoy",
     "blockchain:compile": "cd blockchain/config && npx hardhat compile",
-    "blockchain:test": "node blockchain/tests/blockchain.test.js"
+    "blockchain:test": "node blockchain/tests/blockchain.test.js",
+    "voting:deploy": "cd blockchain/config && npx hardhat run ../scripts/deploy-voting.js --network amoy",
+    "voting:compile": "cd blockchain/config && npx hardhat compile",
+    "voting:test": "cd blockchain/config && npx hardhat test"
   },
   "dependencies": {
     "axios": "^1.12.2",
@@ -36,8 +39,9 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.1",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "ethers": "^6.15.0",
-    "hardhat": "^3.0.6",
+    "hardhat": "^3.0.8",
     "nodemon": "^3.0.2"
   },
   "keywords": [

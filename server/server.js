@@ -17,6 +17,7 @@ const emergencyControlRoutes = require('./routes/emergencyControlRoutes');
 const locationTrackingRoutes = require('./routes/locationTrackingRoutes');
 const insiderMonitoringRoutes = require('./routes/insiderMonitoringRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
+const votingRoutes = require('./routes/votingRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -64,6 +65,19 @@ app.use('/api/emergency', emergencyControlRoutes);
 app.use('/api/locations', locationTrackingRoutes);
 app.use('/api/insider', insiderMonitoringRoutes);
 app.use('/api/departments', departmentRoutes);
+// Debug middleware for voting routes
+app.use('/api/voting', (req, res, next) => {
+  console.log('[DEBUG] Voting route hit:', {
+    method: req.method,
+    path: req.path,
+    contentType: req.headers['content-type'],
+    bodySize: req.headers['content-length'],
+    hasBody: !!req.body,
+    bodyKeys: Object.keys(req.body || {})
+  });
+  next();
+});
+app.use('/api/voting', votingRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

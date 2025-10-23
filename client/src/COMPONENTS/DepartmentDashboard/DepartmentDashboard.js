@@ -32,7 +32,8 @@ export default function DepartmentDashboard() {
     };
 
     const handleLogout = () => {
-        storage.clearToken();
+        storage.removeToken();
+        storage.removeUser();
         navigate('/login');
     };
 

@@ -1,0 +1,9 @@
+{
+  "contractAddress": "0xF536951C047271abE1639719DAcA81185Ca56fAa",
+  "transactionHash": "0x74e43e3664503c52dfb5928d353836828ab594f7e7368f5717f7873169828ffe",
+  "deployedAt": "2025-10-23T09:58:19.842Z",
+  "network": "amoy",
+  "deployer": "0xeE4FF2C92aD082b368E0e284cfAeDe0757DfDb1d",
+  "blockExplorer": "https://amoy.polygonscan.com/address/0xF536951C047271abE1639719DAcA81185Ca56fAa",
+  "contractType": "VotingContract"
+}

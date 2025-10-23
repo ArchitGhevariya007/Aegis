@@ -8,11 +8,11 @@ const apiCall = async (endpoint, options = {}) => {
     console.log('Making API call to:', fullUrl, 'with method:', options.method || 'GET');
     
     const response = await fetch(fullUrl, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      ...options,
     });
 
     console.log('Response status:', response.status, response.statusText);
@@ -299,6 +299,107 @@ export const departmentAPI = {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
+    });
+  },
+};
+
+// Voting API calls
+export const votingAPI = {
+  // Get voting status (user)
+  getStatus: async () => {
+    const token = storage.getToken();
+    return apiCall('/voting/status', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Verify face for voting
+  verifyFace: async (liveFaceImage) => {
+    const token = storage.getToken();
+    console.log('[API] Calling verifyFace with:');
+    console.log('- Token:', token ? 'Present' : 'Missing');
+    console.log('- Image length:', liveFaceImage ? liveFaceImage.length : 0);
+    console.log('- Image type:', typeof liveFaceImage);
+    
+    const bodyData = { liveFaceImage };
+    console.log('[API] Body data:', { hasImage: !!bodyData.liveFaceImage });
+    console.log('[API] Stringified body length:', JSON.stringify(bodyData).length);
+    
+    return apiCall('/voting/verify-face', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(bodyData),
+    });
+  },
+
+  // Cast vote
+  castVote: async (partyId, faceVerified) => {
+    const token = storage.getToken();
+    return apiCall('/voting/cast-vote', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ partyId, faceVerified }),
+    });
+  },
+
+  // Admin: Get voting results
+  getResults: async () => {
+    const token = storage.getToken();
+    return apiCall('/voting/admin/results', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Admin: Start voting
+  startVoting: async () => {
+    const token = storage.getToken();
+    return apiCall('/voting/admin/start', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Admin: Stop voting
+  stopVoting: async () => {
+    const token = storage.getToken();
+    return apiCall('/voting/admin/stop', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Admin: Reset voting
+  resetVoting: async () => {
+    const token = storage.getToken();
+    return apiCall('/voting/admin/reset', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Admin: Update parties
+  updateParties: async (parties) => {
+    const token = storage.getToken();
+    return apiCall('/voting/admin/parties', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ parties }),
     });
   },
 };

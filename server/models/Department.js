@@ -155,8 +155,7 @@ const defaultDepartments = {
                     { name: 'Current Address', enabled: true },
                     { name: 'Age', enabled: false },
                     { name: 'Blood Type', enabled: false },
-                    { name: 'Nationality', enabled: true },
-                    { name: 'Place of Birth', enabled: true }
+                    { name: 'Nationality', enabled: true }
                 ]
             },
             {

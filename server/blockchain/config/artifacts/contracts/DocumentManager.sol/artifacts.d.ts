@@ -15,7 +15,7 @@ export interface DocumentManager$Type {
   readonly deployedLinkReferences: {};
   readonly immutableReferences: {};
   readonly inputSourceName: "project/contracts/DocumentManager.sol";
-  readonly buildInfoId: "solc-0_8_19-0124a425a7600a70300669ee93df83dc829dde97";
+  readonly buildInfoId: "solc-0_8_19-6653259f1c1b8e1489a7baa8202e7f5c0af8beff";
 };
 
 import "hardhat/types/artifacts";

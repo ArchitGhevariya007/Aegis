@@ -171,18 +171,39 @@ router.get('/user-details/:userId', departmentAuth, async (req, res) => {
             });
         }
 
-        // Extract OCR data from first ID document if available
+        // Extract OCR data from any document that has it
+        let ocrData = {};
         const idDocument = user.documents.find(doc => 
-            doc.type === 'id_document' || doc.type === 'id_card' || doc.type === 'passport'
+            doc.ocrData && Object.keys(doc.ocrData).length > 0
         );
-        const ocrData = idDocument?.ocrData || {};
+        
+        if (idDocument && idDocument.ocrData) {
+            ocrData = idDocument.ocrData;
+        }
 
         // Filter user data based on department permissions
         const allowedData = {};
         
+        console.log(`\n========== DEPARTMENT USER DETAILS ==========`);
         console.log(`[Department] Fetching user details for department: ${department.name}`);
+        console.log(`[Department] User email: ${user.email}`);
+        console.log(`[Department] User has ${user.documents.length} documents`);
+        
+        // Log all documents
+        user.documents.forEach((doc, idx) => {
+            console.log(`[Department] Document ${idx}: type=${doc.type}, fileName=${doc.fileName}`);
+            if (doc.ocrData) {
+                console.log(`[Department]   OCR Data: name=${doc.ocrData.name}, dob=${doc.ocrData.dob}, address=${doc.ocrData.address}`);
+            }
+        });
+        
+        console.log(`[Department] ID Document found:`, !!idDocument);
+        console.log(`[Department] OCR Data:`, JSON.stringify(ocrData, null, 2));
+        console.log(`[Department] User birthDate:`, user.birthDate);
+        console.log(`[Department] User residency:`, user.residency);
+        console.log(`[Department] User phoneNumber:`, user.phoneNumber);
         console.log(`[Department] Department has ${department.permissions.length} permission categories`);
-        console.log(`[Department] OCR Data available:`, ocrData);
+        console.log(`=============================================\n`);
         
         department.permissions.forEach(category => {
             // Only process Basic Information category, skip Document Access
