@@ -530,62 +530,32 @@ class BlockchainService {
     // Store vote on blockchain using smart contract
     async storeVoteOnContract(voteData) {
         try {
-            console.log('🗳️  Storing vote on blockchain smart contract...');
-            
             const contract = this.getVotingContract();
-            
-            // Create user hash (maintains privacy)
             const userHash = ethers.id(voteData.userId);
-            
-            // Convert user ID to deterministic blockchain address
             const voterAddress = this.userToBlockchainAddress(voteData.userId);
             
-            console.log(`   User: ${voteData.userId.substring(0, 8)}... → Address: ${voterAddress}`);
-            console.log(`   Party: ${voteData.partyId}, FaceVerified: ${voteData.faceVerified}`);
-            console.log(`   Contract: ${await contract.getAddress()}`);
-            
-            // Debug: Check if function exists
-            console.log(`   Contract has castVoteFor:`, typeof contract.castVoteFor);
-            console.log(`   Contract interface:`, contract.interface.fragments.map(f => f.name).filter(n => n));
-            
-            // Check if voting is active first
+            // Check if voting is active
             const isActive = await contract.isActive();
-            console.log(`   Voting Active: ${isActive}`);
-            
             if (!isActive) {
                 throw new Error('Voting session is not active on blockchain');
             }
             
-            // Cast vote on smart contract using admin function
-            console.log(`   Calling castVoteFor with:`, {
-                voter: voterAddress,
-                partyId: voteData.partyId,
-                faceVerified: voteData.faceVerified,
-                userHash: userHash.substring(0, 20) + '...'
-            });
-            
-            // Manually encode and send transaction to avoid ethers.js async issues
+            // Encode and send transaction
             const encodedData = contract.interface.encodeFunctionData('castVoteFor', [
                 voterAddress,
                 voteData.partyId,
                 voteData.faceVerified,
                 userHash
             ]);
-            console.log(`   Encoded data length: ${encodedData.length}`);
-            console.log(`   Encoded data (first 20 chars): ${encodedData.substring(0, 20)}`);
             
-            // Send raw transaction instead of using contract method
             const txRequest = {
                 to: await contract.getAddress(),
                 data: encodedData,
-                gasLimit: 300000, // Increased gas limit
+                gasLimit: 300000,
                 gasPrice: ethers.parseUnits('30', 'gwei')
             };
             
-            console.log(`   Sending transaction with data: ${txRequest.data.substring(0, 20)}...`);
             const tx = await this.wallet.sendTransaction(txRequest);
-            
-            console.log('⏳ Waiting for transaction confirmation...');
             const receipt = await tx.wait();
             
             // Extract vote hash from event
@@ -605,8 +575,6 @@ class BlockchainService {
                     voteHash = parsed.args.voteHash;
                 }
             }
-            
-            console.log(`✅ Vote stored on blockchain: ${receipt.hash}`);
             
             return {
                 transactionHash: receipt.hash,
@@ -689,20 +657,11 @@ class BlockchainService {
     // Start voting session on contract
     async startVotingOnContract() {
         try {
-            console.log('🚀 Starting voting on blockchain...');
-            
             const contract = this.getVotingContract();
-            
-            // Check current status first
             const wasActive = await contract.isActive();
-            console.log(`   Current status: ${wasActive ? 'Active' : 'Inactive'}`);
             
             if (wasActive) {
-                console.log('⚠️  Voting is already active on blockchain');
-                return {
-                    success: true,
-                    message: 'Voting already active'
-                };
+                return { success: true, message: 'Voting already active' };
             }
             
             const tx = await contract.startVoting({
@@ -710,14 +669,7 @@ class BlockchainService {
                 gasPrice: ethers.parseUnits('30', 'gwei')
             });
             
-            console.log(`   Transaction sent: ${tx.hash}`);
             const receipt = await tx.wait();
-            
-            // Verify it started
-            const isNowActive = await contract.isActive();
-            console.log(`   New status: ${isNowActive ? 'Active ✅' : 'Still Inactive ⚠️'}`);
-            
-            console.log('✅ Voting started on blockchain');
             
             return {
                 success: true,
@@ -725,7 +677,6 @@ class BlockchainService {
                 message: 'Voting session started on blockchain'
             };
         } catch (error) {
-            console.error('❌ Failed to start voting on blockchain:', error.message);
             throw new Error(`Failed to start voting: ${error.message}`);
         }
     }

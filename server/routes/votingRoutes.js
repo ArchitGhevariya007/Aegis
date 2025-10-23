@@ -44,10 +44,6 @@ router.get('/status', auth, async (req, res) => {
 // Verify face for voting
 router.post('/verify-face', auth, async (req, res) => {
   try {
-    console.log('[VOTING] Request body keys:', Object.keys(req.body));
-    console.log('[VOTING] liveFaceImage present:', !!req.body.liveFaceImage);
-    console.log('[VOTING] liveFaceImage length:', req.body.liveFaceImage ? req.body.liveFaceImage.length : 0);
-    
     const { liveFaceImage } = req.body;
     
     if (!liveFaceImage) {
@@ -75,9 +71,6 @@ router.post('/verify-face', auth, async (req, res) => {
       });
     }
 
-    console.log('[VOTING] Verifying face for user:', user.email);
-    console.log('[VOTING] ID face path type:', idFaceDoc.filePath.substring(0, 30) + '...');
-
     // Read the stored ID face image
     let idFaceImage;
     try {
@@ -85,12 +78,10 @@ router.post('/verify-face', auth, async (req, res) => {
       if (idFaceDoc.filePath.startsWith('data:image')) {
         // Extract base64 from data URL
         idFaceImage = idFaceDoc.filePath.split(',')[1];
-        console.log('[VOTING] Using stored base64 image');
       } else if (fs.existsSync(idFaceDoc.filePath)) {
         // Read from file system
         const imageBuffer = fs.readFileSync(idFaceDoc.filePath);
         idFaceImage = imageBuffer.toString('base64');
-        console.log('[VOTING] Read image from file system');
       } else {
         return res.status(400).json({
           success: false,
@@ -107,13 +98,6 @@ router.post('/verify-face', auth, async (req, res) => {
 
     // Compare faces using face pipeline
     const faceComparison = await facePipeline.compareFaceImages(idFaceImage, liveFaceImage);
-    
-    console.log('[VOTING] Face verification result:', {
-      success: faceComparison.success,
-      similarity: faceComparison.similarity,
-      is_match: faceComparison.is_match,
-      threshold: faceComparison.threshold
-    });
 
     if (!faceComparison.success) {
       return res.status(400).json({
@@ -182,10 +166,9 @@ router.post('/cast-vote', auth, async (req, res) => {
     try {
       const result = await session.castVote(req.userId, user.email, partyId, ipAddress, faceVerified);
       
-      console.log(`[VOTING] Vote cast by ${user.email} for party ${partyId}`);
-      console.log(`[VOTING] Blockchain: ${result.blockchainVerified ? 'Verified ✅' : 'Failed ⚠️'}`);
+      console.log(`✅ Vote cast: ${user.email} → ${result.party} ${result.blockchainVerified ? '(Blockchain ✓)' : '(DB only)'}`);
       if (result.transactionHash) {
-        console.log(`[VOTING] Transaction: ${result.transactionHash}`);
+        console.log(`   TX: ${result.transactionHash}`);
       }
       
       res.json({
@@ -275,18 +258,15 @@ router.post('/admin/start', adminAuth, async (req, res) => {
     
     await session.save();
     
-    console.log('[VOTING] Voting started by admin');
-    
     // Start voting on blockchain
     const blockchainService = require('../services/blockchainService');
     let blockchainResult = null;
     
     try {
       blockchainResult = await blockchainService.startVotingOnContract();
-      console.log('[VOTING] ✅ Blockchain voting started');
+      console.log('✅ Voting started:', session.isActive ? 'Active' : 'Inactive', '| Blockchain:', blockchainResult?.success ? '✓' : '✗');
     } catch (blockchainError) {
-      console.error('[VOTING] ⚠️  Failed to start blockchain voting:', blockchainError.message);
-      // Continue even if blockchain fails - will be stored in DB
+      console.error('⚠️  Blockchain start failed:', blockchainError.message);
     }
     
     res.json({
@@ -325,17 +305,14 @@ router.post('/admin/stop', adminAuth, async (req, res) => {
     
     await session.save();
     
-    console.log('[VOTING] Voting stopped by admin');
-    
     // Stop voting on blockchain
     const blockchainService = require('../services/blockchainService');
     
     try {
       await blockchainService.stopVotingOnContract();
-      console.log('[VOTING] ✅ Blockchain voting stopped');
+      console.log('⏹️  Voting stopped | Total votes:', session.totalVotes);
     } catch (blockchainError) {
-      console.error('[VOTING] ⚠️  Failed to stop blockchain voting:', blockchainError.message);
-      // Continue even if blockchain fails
+      console.error('⚠️  Blockchain stop failed:', blockchainError.message);
     }
     
     res.json({
