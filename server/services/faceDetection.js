@@ -290,53 +290,77 @@ async function cropFaceFromImage(base64, faceBox, targetSize = 112) {
   const scaleX = imgWidth / SCRFD_INPUT_SIZE;
   const scaleY = imgHeight / SCRFD_INPUT_SIZE;
   
-  // Scale coordinates to original image space
-  let x = Math.floor(faceBox.x * scaleX);
-  let y = Math.floor(faceBox.y * scaleY);
-  let width = Math.floor(faceBox.width * scaleX);
-  let height = Math.floor(faceBox.height * scaleY);
+  // Scale face box from SCRFD's 640x640 space to original image dimensions
+  const detectedX = faceBox.x * scaleX;
+  const detectedY = faceBox.y * scaleY;
+  const detectedW = faceBox.width * scaleX;
+  const detectedH = faceBox.height * scaleY;
   
-  // Add generous padding (50%) on all sides to ensure full face + context
-  const padding = 0.5;
-  const padX = Math.floor(width * padding);
-  const padY = Math.floor(height * padding);
+  // Calculate face center
+  const faceCenterX = detectedX + detectedW / 2;
+  const faceCenterY = detectedY + detectedH / 2;
   
-  // Expand the box equally on all sides
-  x = x - padX;
-  y = y - padY;
-  width = width + 2 * padX;
-  height = height + 2 * padY;
+  console.log(`[CROP DEBUG] Image dims: ${imgWidth}x${imgHeight} | Detected face: x=${detectedX.toFixed(1)}, y=${detectedY.toFixed(1)}, w=${detectedW.toFixed(1)}, h=${detectedH.toFixed(1)}`);
+  console.log(`[CROP DEBUG] Face center: (${faceCenterX.toFixed(1)}, ${faceCenterY.toFixed(1)})`);
   
-  // Calculate center
-  const centerX = x + width / 2;
-  const centerY = y + height / 2;
+  // Strategy: Don't force a square that might crop the face
+  // Instead: Take the detected face box itself and just add generous padding
+  // This guarantees NO cropping of the actual face
+  const padding = 0.4; // 40% padding around each side of the detected box
+  const paddedW = detectedW * (1 + 2 * padding);
+  const paddedH = detectedH * (1 + 2 * padding);
   
-  // Make it square by using the larger dimension
-  const size = Math.max(width, height);
+  console.log(`[CROP DEBUG] Detected: ${detectedW.toFixed(1)}x${detectedH.toFixed(1)} | Padded (40%): ${paddedW.toFixed(1)}x${paddedH.toFixed(1)}`);
   
-  // Center the square on the face
-  let squareX = Math.floor(centerX - size / 2);
-  let squareY = Math.floor(centerY - size / 2);
+  // Make it square using the larger padded dimension
+  const squareSize = Math.max(paddedW, paddedH);
   
-  // Now clamp to image bounds, adjusting both position and size if needed
-  if (squareX < 0) {
-    squareX = 0;
+  console.log(`[CROP DEBUG] Square size needed: ${squareSize.toFixed(1)}`);
+  
+  // IMPORTANT: Never crop the detected face
+  // Position the square so the detected face box is fully inside it
+  let cropX = detectedX - detectedW * padding;  // Add padding to left
+  let cropY = detectedY - detectedH * padding;  // Add padding to top
+  
+  console.log(`[CROP DEBUG] Initial position: (${cropX.toFixed(1)}, ${cropY.toFixed(1)}), size: ${squareSize.toFixed(1)}`);
+  
+  // Ensure we don't go negative
+  if (cropX < 0) cropX = 0;
+  if (cropY < 0) cropY = 0;
+  
+  // Ensure we don't exceed image bounds - reduce size if needed, don't shift position
+  // This keeps the face in the crop, even if we can't get the full desired square
+  let finalSize = squareSize;
+  if (cropX + finalSize > imgWidth) {
+    finalSize = imgWidth - cropX;
   }
-  if (squareY < 0) {
-    squareY = 0;
+  if (cropY + finalSize > imgHeight) {
+    finalSize = Math.min(finalSize, imgHeight - cropY);
   }
   
-  // Calculate how much space is available
-  let squareSize = size;
-  if (squareX + squareSize > imgWidth) {
-    squareSize = imgWidth - squareX;
+  // Final safety: ensure detected face is still inside the crop
+  // If it's not (shouldn't happen with above logic), shift the crop to include it
+  const detectedRight = detectedX + detectedW;
+  const detectedBottom = detectedY + detectedH;
+  
+  let finalX = Math.floor(cropX);
+  let finalY = Math.floor(cropY);
+  let finalWidth = Math.floor(finalSize);
+  let finalHeight = Math.floor(finalSize);
+  
+  // Verify detected face is inside
+  if (finalX + finalWidth < detectedRight) {
+    finalX = Math.floor(detectedRight - finalWidth);
   }
-  if (squareY + squareSize > imgHeight) {
-    squareSize = Math.min(squareSize, imgHeight - squareY);
+  if (finalY + finalHeight < detectedBottom) {
+    finalY = Math.floor(detectedBottom - finalHeight);
   }
   
-  // Ensure minimum size
-  squareSize = Math.max(squareSize, Math.min(width, height));
+  // Clamp to non-negative
+  finalX = Math.max(0, finalX);
+  finalY = Math.max(0, finalY);
+  
+  console.log(`[CROP] RESULT - Image:${imgWidth}x${imgHeight} | Detected:${Math.floor(detectedW)}x${Math.floor(detectedH)} at (${Math.floor(detectedX)},${Math.floor(detectedY)}) | Final Crop:${finalWidth}x${finalHeight} at (${finalX},${finalY})`);
   
   // Face cropping debug logs removed for cleaner console output
   
@@ -353,10 +377,10 @@ async function cropFaceFromImage(base64, faceBox, targetSize = 112) {
   }
 
   const cropped = await sharp(processedBuffer, { failOnError: false })
-    .extract({ left: squareX, top: squareY, width: squareSize, height: squareSize })
+    .extract({ left: finalX, top: finalY, width: finalWidth, height: finalHeight })
     .resize(targetSize, targetSize, { 
-      kernel: sharp.kernel.cubic,
-      fit: 'fill'  // Ensure exact targetSize x targetSize output
+      kernel: sharp.kernel.lanczos3,  // High-quality downsampling
+      fit: 'fill'  // Already square, just resize without cropping
     })
     .jpeg({ quality: 95 })
     .toBuffer();

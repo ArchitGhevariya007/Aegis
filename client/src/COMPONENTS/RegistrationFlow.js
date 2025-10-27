@@ -429,7 +429,13 @@ export default function RegistrationFlow() {
         
       setUser((u) => ({
         ...u,
-        faceData: { ...u.faceData, liveFaceImage: croppedFace, livenessVerified: true },
+        // Store BOTH original and cropped: original for voting face verification, cropped for preview
+        faceData: { 
+          ...u.faceData, 
+          liveFaceImage: jpegData,  // Store original full-size image
+          liveFaceImageCropped: croppedFace,  // Store cropped for display
+          livenessVerified: true 
+        },
       }));
         
         // Don't show modal for successful capture, just proceed
@@ -686,7 +692,11 @@ export default function RegistrationFlow() {
             },
           ],
           fullDocumentImage: base64, // Store full document image separately
-          faceData: { ...u.faceData, idFaceImage: croppedFace }, // Keep cropped face for verification
+          faceData: { 
+            ...u.faceData, 
+            idFaceImage: base64,  // Store ORIGINAL full-size document image
+            idFaceImageCropped: croppedFace  // Store cropped for display
+          },
         }));
 
         // Fill OCR editable fields with extracted data
@@ -712,7 +722,11 @@ export default function RegistrationFlow() {
             },
           ],
           fullDocumentImage: base64, // Store full document image separately
-          faceData: { ...u.faceData, idFaceImage: croppedFace }, // Keep cropped face for verification
+          faceData: { 
+            ...u.faceData, 
+            idFaceImage: base64,  // Store ORIGINAL full-size document image
+            idFaceImageCropped: croppedFace  // Store cropped for display
+          },
         }));
 
         setOcrEditable({

@@ -119,8 +119,8 @@ router.post('/register', validateRegistration, async (req, res) => {
       kycStatus: 'completed',
       isActive: true,
       faceData: {
-        idFaceImage: faceComparison.idCroppedFace,
-        liveFaceImage: faceComparison.liveCroppedFace,
+        idFaceImage: idFaceImage,
+        liveFaceImage: liveFaceImage,
         livenessVerified: true,
         faceMatched: true
       },
@@ -180,13 +180,13 @@ router.post('/register', validateRegistration, async (req, res) => {
         {
           type: 'id_face',
           fileName: 'id_face_image.jpg',
-          filePath: faceComparison.idCroppedFace,
+          filePath: idFaceImage,
           verified: true
         },
         {
           type: 'live_face',
           fileName: 'live_face_capture.jpg',
-          filePath: faceComparison.liveCroppedFace,
+          filePath: liveFaceImage,
           verified: true
         }
       ],
