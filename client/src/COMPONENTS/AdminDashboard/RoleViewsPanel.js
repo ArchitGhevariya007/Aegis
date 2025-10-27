@@ -152,8 +152,8 @@ export default function RoleViewsPanel() {
   };
 
   if (loading) {
-    return (
-      <div className="p-6 bg-white rounded-2xl shadow">
+  return (
+    <div className="p-6 bg-white rounded-2xl shadow">
         <div className="flex items-center justify-center h-64">
           <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
         </div>
@@ -191,11 +191,11 @@ export default function RoleViewsPanel() {
         </div>
 
         {/* Department Selector */}
-        <div className="mb-6">
+      <div className="mb-6">
           <label className="block mb-2 text-sm font-semibold text-slate-700">
             Select Department
-          </label>
-          <select
+        </label>
+        <select
             value={selectedDepartment?._id || ''}
             onChange={(e) => {
               const dept = departments.find(d => d._id === e.target.value);
@@ -206,9 +206,9 @@ export default function RoleViewsPanel() {
             {departments.map((dept) => (
               <option key={dept._id} value={dept._id}>
                 {dept.name} ({dept.code})
-              </option>
-            ))}
-          </select>
+            </option>
+          ))}
+        </select>
           {selectedDepartment?.description && (
             <p className="mt-2 text-sm text-slate-600 flex items-start gap-2">
               <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -296,7 +296,7 @@ export default function RoleViewsPanel() {
                             {categoryStats.enabled} of {categoryStats.total} enabled
                           </p>
                         </div>
-                      </div>
+      </div>
 
                       {/* Quick Actions */}
                       <div className="flex items-center gap-2">
@@ -323,8 +323,8 @@ export default function RoleViewsPanel() {
                           Disable All
                         </button>
                       </div>
-                    </div>
-                  </div>
+      </div>
+    </div>
 
                   {/* Category Fields */}
                   {expandedCategories[categoryIndex] && (

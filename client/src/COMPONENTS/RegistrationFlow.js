@@ -41,7 +41,7 @@ export default function RegistrationFlow() {
     confirmPassword: "",
     birthDate: "",
     residency: "",
-    phoneNumber: "",
+    phoneNumber: null, // Changed to null for proper handling
     kycStatus: "pending",
     documents: [],
     faceData: {
@@ -56,6 +56,7 @@ export default function RegistrationFlow() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [error, setError] = useState('');
   
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -175,22 +176,121 @@ export default function RegistrationFlow() {
   // Camera controls
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        audio: false,
+      // Reset states
+      setUsingCamera(false);
+      setCameraReady(false);
+      
+      // Request high-quality video with fallback options
+      const constraints = {
+        video: {
+          facingMode: "user",
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          frameRate: { min: 15, ideal: 30, max: 60 },
+          aspectRatio: { ideal: 16/9 }
+        },
+        audio: false
+      };
+
+      console.log('Requesting camera with constraints:', constraints);
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const videoTrack = stream.getVideoTracks()[0];
+      const settings = videoTrack.getSettings();
+      
+      console.log('Camera settings:', {
+        width: settings.width,
+        height: settings.height,
+        frameRate: settings.frameRate,
+        deviceId: settings.deviceId
       });
-      setUsingCamera(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraReady(true);
+
+      if (!videoRef.current) {
+        throw new Error('Video element not found');
       }
+
+      // Set up video element
+      const video = videoRef.current;
+      video.srcObject = stream;
+      video.muted = true; // Ensure muted
+      
+      // Wait for video to be ready
+      await new Promise((resolve, reject) => {
+        let timeout;
+        
+        const cleanup = () => {
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+          video.removeEventListener('error', handleError);
+          clearTimeout(timeout);
+        };
+        
+        const handleLoadedMetadata = async () => {
+          try {
+            await video.play();
+            // Wait for a few frames to ensure stable video
+            await new Promise(resolve => setTimeout(resolve, 100));
+            cleanup();
+            resolve();
+          } catch (error) {
+            cleanup();
+            reject(error);
+          }
+        };
+        
+        const handleError = (error) => {
+          cleanup();
+          reject(error);
+        };
+        
+        timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('Video initialization timeout'));
+        }, 10000); // 10 second timeout
+        
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('error', handleError);
+      });
+
+      // Verify video dimensions
+      if (!video.videoWidth || !video.videoHeight) {
+        throw new Error('Video dimensions not available');
+      }
+
+      console.log('Video ready:', {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        readyState: video.readyState,
+        playing: !video.paused
+      });
+
+      setUsingCamera(true);
+      
+      // Wait additional time for stream to stabilize before allowing capture
+      console.log('Waiting for video stream to stabilize...');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second stabilization
+      
+      // Final check
+      if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+        console.log('Camera fully ready for capture');
+        setCameraReady(true);
+      } else {
+        throw new Error('Camera not fully initialized');
+      }
+      
     } catch (e) {
-      console.error("Camera error", e);
+      console.error("Camera error:", e);
       setUsingCamera(false);
       setCameraReady(false);
       setModalType('camera_error');
-      setModalMessage("Unable to access camera. You can proceed with the demo Skip.");
+      setModalMessage(
+        e.name === 'NotAllowedError' ? 
+          "Camera access denied. Please allow camera access and try again." :
+          e.name === 'NotFoundError' ?
+          "No camera found. Please ensure your camera is connected and try again." :
+          e.name === 'NotReadableError' ?
+          "Camera is in use by another application. Please close other apps using the camera and try again." :
+          e.message || "Unable to access camera. Please check your camera settings and try again."
+      );
       setShowModal(true);
     }
   };
@@ -206,7 +306,20 @@ export default function RegistrationFlow() {
   };
 
   const captureSnapshot = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) {
+      setModalType('error');
+      setModalMessage('Camera not ready. Please wait a moment and try again.');
+      setShowModal(true);
+      return;
+    }
+    
+    // Don't allow capture if camera isn't ready
+    if (!cameraReady) {
+      setModalType('error');
+      setModalMessage('Camera is still initializing. Please wait a few seconds and try again.');
+      setShowModal(true);
+      return;
+    }
     
     // Show processing indicator
     setProcessing(true);
@@ -214,23 +327,131 @@ export default function RegistrationFlow() {
     
     try {
       const v = videoRef.current;
-      const c = canvasRef.current;
-      c.width = v.videoWidth || 640;
-      c.height = v.videoHeight || 480;
-      const ctx = c.getContext("2d");
-      ctx.drawImage(v, 0, 0, c.width, c.height);
-      const data = c.toDataURL("image/png");
       
-      // Always set the image, with or without face detection
-      const croppedFace = await detectAndCropFace(data);
+      console.log('Starting capture, video state:', {
+        videoWidth: v.videoWidth,
+        videoHeight: v.videoHeight,
+        readyState: v.readyState,
+        paused: v.paused,
+        ended: v.ended,
+        srcObject: !!v.srcObject,
+        cameraReady: cameraReady
+      });
+      
+      // Comprehensive video readiness check
+      if (!v.srcObject) {
+        // Camera stream was lost, need to restart
+        setCameraReady(false);
+        setUsingCamera(false);
+        throw new Error('Camera stream was lost. Please click "Start Camera" again.');
+      }
+      
+      if (!v.videoWidth || !v.videoHeight) {
+        throw new Error('Video dimensions not available. Please ensure your camera is working and try again.');
+      }
+      
+      if (v.readyState < 2) {
+        throw new Error('Video is not loaded. Please wait a few more seconds and try again.');
+      }
+
+      // Check if video is actually playing
+      if (v.paused || v.ended) {
+        console.log('Video not playing, attempting to restart...');
+        try {
+          await v.play();
+          // Wait for video to actually start playing
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          
+          // Verify it's actually playing
+          if (v.paused || v.ended) {
+            throw new Error('Failed to start video playback');
+          }
+        } catch (playError) {
+          console.error('Failed to restart video:', playError);
+          // Reset camera state
+          setCameraReady(false);
+          setUsingCamera(false);
+          throw new Error('Camera stopped working. Please click "Start Camera" again.');
+        }
+      }
+      
+      // Wait for multiple frames to ensure fresh capture
+      console.log('Waiting for fresh frames...');
+      for (let i = 0; i < 3; i++) {
+        await new Promise(requestAnimationFrame);
+      }
+      
+      const c = canvasRef.current;
+      
+      // Set canvas size to match video
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      
+      const ctx = c.getContext("2d", { alpha: false }); // Disable alpha for better performance
+      
+      // Clear canvas and set white background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, c.width, c.height);
+      
+      // Draw mirrored video frame with image processing
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(v, -c.width, 0, c.width, c.height);
+      ctx.restore();
+
+      // Don't apply image processing - it can affect face detection quality
+      // Just use the raw captured frame
+      
+      // Convert to high-quality JPEG
+      const jpegData = c.toDataURL("image/jpeg", 0.95);
+      
+      console.log('Captured frame dimensions:', {
+        videoWidth: v.videoWidth,
+        videoHeight: v.videoHeight,
+        canvasWidth: c.width,
+        canvasHeight: c.height,
+        dataLength: jpegData.length
+      });
+      
+      // Validate image data
+      if (jpegData.length < 1000) {
+        throw new Error('Invalid capture data. Please try again.');
+      }
+      
+      try {
+        // Attempt face detection and cropping
+        const croppedFace = await detectAndCropFace(jpegData, false); // false for live capture
+        
+        // Validate cropped face
+        if (!croppedFace || croppedFace.length < 1000) {
+          throw new Error('Invalid face crop result. Please try again.');
+        }
+        
       setUser((u) => ({
         ...u,
         faceData: { ...u.faceData, liveFaceImage: croppedFace, livenessVerified: true },
       }));
+        
+        // Don't show modal for successful capture, just proceed
+        console.log('Face captured successfully!');
+        
+      } catch (faceError) {
+        console.error('Face detection error:', faceError);
+        setModalType('error');
+        setModalMessage(
+          faceError.message === 'No faces detected in image' ?
+          'No face detected. Please ensure your face is clearly visible and well-lit.' :
+          faceError.message === 'Multiple faces detected' ?
+          'Multiple faces detected. Please ensure only your face is in the frame.' :
+          faceError.message || 'Failed to detect face. Please try again.'
+        );
+        setShowModal(true);
+        throw faceError; // Re-throw to prevent proceeding
+      }
     } catch (error) {
       console.error('Error capturing face:', error);
       setModalType('error');
-      setModalMessage('Failed to capture face. Please try again.');
+      setModalMessage(error.message || 'Failed to capture face. Please try again.');
       setShowModal(true);
     } finally {
       setProcessing(false);
@@ -262,31 +483,113 @@ export default function RegistrationFlow() {
   }, [step, user.faceData.idFaceImage, user.faceData.liveFaceImage]);
 
   // Face detection using server-side SCRFD
-  async function detectAndCropFace(base64) {
+  async function detectAndCropFace(base64, isDocumentPhoto = false) {
     try {
-      console.log('Sending face detection request...');
+      console.log('Sending face detection request...', { isDocumentPhoto });
+      
+      // Ensure image is properly formatted
+      let imageData = base64;
+      if (!base64.startsWith('data:')) {
+        imageData = `data:image/jpeg;base64,${base64}`;
+      }
+      
+      // Log image dimensions before sending
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageData;
+      });
+      console.log('Original image dimensions:', {
+        width: img.width,
+        height: img.height,
+        aspectRatio: (img.width / img.height).toFixed(2)
+      });
+
+      // Calculate optimal parameters based on image size
+      const minDimension = Math.min(img.width, img.height);
+      const maxDimension = Math.max(img.width, img.height);
+      const aspectRatio = maxDimension / minDimension;
+
+      console.log('Face detection parameters:', {
+        minDimension,
+        maxDimension,
+        aspectRatio,
+        isDocumentPhoto
+      });
+
       const response = await fetch('http://localhost:5000/api/ai/detect-faces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 })
+        body: JSON.stringify({ image: imageData })
       });
       
       const result = await response.json();
-      console.log('Face detection response:', result);
+      
+      // Log all detected faces for debugging
+      if (result.faces && result.faces.length > 0) {
+        console.log('Detected faces:', result.faces.map((face, idx) => ({
+          index: idx,
+          confidence: face.confidence,
+          size: face.size || 'unknown',
+          position: face.position || 'unknown'
+        })));
+      }
+      
+      console.log('Face detection response:', {
+        success: result.success,
+        faceCount: result.faces?.length || 0,
+        hasCroppedFace: !!result.croppedFace,
+        croppedFaceLength: result.croppedFace?.length || 0,
+        isDocumentPhoto,
+        selectedFaceIndex: result.selectedFaceIndex || 0
+      });
       
       if (!result.success) {
         throw new Error(result.message || 'Face detection failed');
       }
       
       if (result.faces.length === 0) {
-        throw new Error('No faces detected in image');
+        throw new Error('No faces detected. Please ensure your face is clearly visible and well-lit.');
       }
       
-      return result.croppedFace; // Server returns the cropped face
+      // For live capture with multiple faces, provide helpful error
+      if (!isDocumentPhoto && result.faces.length > 1) {
+        console.warn('Multiple faces detected:', result.faces.length);
+        console.warn('This might be due to reflections, shadows, or patterns in the background.');
+        console.warn('Using the most confident/largest face...');
+        
+        // Don't throw error, just use the best face (server should handle selection)
+        // throw new Error('Multiple faces detected. Please ensure only your face is in the image.');
+      }
+      
+      // For document photo, use the largest face if multiple detected
+      if (isDocumentPhoto && result.faces.length > 1) {
+        console.log(`Multiple faces detected in document (${result.faces.length}), server selected the best one`);
+      }
+      
+      if (!result.croppedFace) {
+        throw new Error('Face cropping failed. Please try again with a clearer photo.');
+      }
+      
+      // Verify cropped image dimensions
+      const croppedImg = new Image();
+      await new Promise((resolve, reject) => {
+        croppedImg.onload = resolve;
+        croppedImg.onerror = reject;
+        croppedImg.src = result.croppedFace;
+      });
+      console.log('Cropped face dimensions:', {
+        width: croppedImg.width,
+        height: croppedImg.height,
+        aspectRatio: (croppedImg.width / croppedImg.height).toFixed(2),
+        isDocumentPhoto
+      });
+
+      return result.croppedFace;
     } catch (error) {
       console.error('Face detection error:', error);
-      // Return the original image as fallback
-      return base64;
+      throw error; // Don't fallback to original image, show error instead
     }
   }
 
@@ -297,10 +600,30 @@ export default function RegistrationFlow() {
     setProcessing(true);
     setProcessingMessage("Processing document and extracting information...");
     
+    console.log('Starting document upload:', {
+      fileName: file.name,
+      size: file.size,
+      type: file.type
+    });
+    
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target.result;
+      console.log('Document loaded as base64:', {
+        fileName: file.name,
+        base64Length: base64.length,
+        startsWithData: base64.startsWith('data:'),
+        mimeType: base64.split(';')[0].split(':')[1] || 'unknown'
+      });
+      
+      // Ensure proper data URL format
+      if (!base64.startsWith('data:')) {
+        const mimeType = file.type || 'image/jpeg';
+        const formattedBase64 = `data:${mimeType};base64,${base64}`;
+        setDocBase64(formattedBase64);
+      } else {
       setDocBase64(base64);
+      }
       
       try {
         
@@ -318,8 +641,8 @@ export default function RegistrationFlow() {
         const ocrResult = await ocrResponse.json();
         console.log('OCR processing result:', ocrResult);
         
-        // Extract face from document
-        const croppedFace = await detectAndCropFace(base64);
+        // Extract face from document but keep full image
+        const croppedFace = await detectAndCropFace(base64, true); // true for document photo
         
         // Initialize empty form data
         let extractedData = {
@@ -357,13 +680,13 @@ export default function RegistrationFlow() {
           ...u,
           documents: [
             {
-              type: { type: "id_card" },
+              type: "id_document",
               fileName: file.name,
-              filePath: "",
               ocrData: extractedData,
             },
           ],
-          faceData: { ...u.faceData, idFaceImage: croppedFace },
+          fullDocumentImage: base64, // Store full document image separately
+          faceData: { ...u.faceData, idFaceImage: croppedFace }, // Keep cropped face for verification
         }));
 
         // Fill OCR editable fields with extracted data
@@ -371,23 +694,25 @@ export default function RegistrationFlow() {
         
       } catch (error) {
         console.error('❌ Document processing failed:', error);
-        // Set empty data on error
+        // Set empty data on error but still store full image
         const croppedFace = await detectAndCropFace(base64);
         setUser((u) => ({
           ...u,
           documents: [
             {
-              type: { type: "id_card" },
+              type: "id_document",
               fileName: file.name,
-              filePath: "",
             ocrData: {
+                documentType: "",
               name: "",
               dob: "",
-              documentType: "id_card",
+                idNumber: "",
+                address: ""
             },
             },
           ],
-          faceData: { ...u.faceData, idFaceImage: croppedFace },
+          fullDocumentImage: base64, // Store full document image separately
+          faceData: { ...u.faceData, idFaceImage: croppedFace }, // Keep cropped face for verification
         }));
 
         setOcrEditable({
@@ -401,7 +726,8 @@ export default function RegistrationFlow() {
         setProcessingMessage('');
       }
     };
-    reader.readAsDataURL(file);
+    // Read file as data URL with proper MIME type
+    reader.readAsDataURL(new Blob([file], { type: file.type || 'image/jpeg' }));
   };
 
   const formatForInputDate = (d) => {
@@ -418,31 +744,81 @@ export default function RegistrationFlow() {
 
   const handleComplete = async () => {
     setSubmitting(true);
+    setError(''); // Clear any previous errors
     try {
+      // Clean up data before sending
+      const cleanedOcrData = {
+        documentType: ocrEditable.documentType || null,
+        name: ocrEditable.name || null,
+        dob: ocrEditable.dob || null,
+        idNumber: ocrEditable.idNumber || null,
+        address: ocrEditable.address || null
+      };
+
+      const documentData = {
+        type: "id_document",
+        fileName: "id_document.jpg",
+        ocrData: cleanedOcrData
+      };
+
+      // Ensure we have the full document image
+      console.log('Checking document image:', {
+        docBase64Present: !!docBase64,
+        docBase64Length: docBase64?.length || 0,
+        docBase64Type: docBase64?.split(';')[0].split(':')[1] || 'unknown',
+        docBase64StartsWithData: docBase64?.startsWith('data:') || false
+      });
+
+      if (!docBase64) {
+        setError("Document image is required. Please upload your ID document.");
+        setModalType('error');
+        setModalMessage("Document image is required. Please upload your ID document.");
+        setShowModal(true);
+        setSubmitting(false);
+        return;
+      }
+
+      // Ensure document image is in correct format
+      if (!docBase64.startsWith('data:')) {
+        setError("Invalid document image format. Please try uploading again.");
+        setModalType('error');
+        setModalMessage("Invalid document image format. Please try uploading again.");
+        setShowModal(true);
+        setSubmitting(false);
+        return;
+      }
+      
+      // Clear any previous errors
+      setError('');
+
       console.log('Registration data:', {
         email: user.email,
-        phoneNumber: user.phoneNumber,
+        phoneNumber: user.phoneNumber || 'Not provided',
         birthDate: user.birthDate,
         residency: user.residency,
         hasIdImage: !!user.faceData.idFaceImage,
         hasLiveImage: !!user.faceData.liveFaceImage,
         idImageLength: user.faceData.idFaceImage?.length || 0,
         liveImageLength: user.faceData.liveFaceImage?.length || 0,
-        ocrData: ocrEditable,
-        documentData: user.documents[0]
+        ocrData: cleanedOcrData,
+        documentData: documentData,
+        hasFullDocument: !!docBase64,
+        fullDocumentLength: docBase64?.length || 0,
+        fullDocumentType: docBase64?.split(';')[0].split(':')[1] || 'unknown'
       });
 
-      // Call the registration API with face images and OCR data
+      // Call the registration API with face images, full document image, and OCR data
       const response = await authAPI.register({
         email: user.email,
         password: user.password,
         birthDate: user.birthDate,
         residency: user.residency,
-        phoneNumber: user.phoneNumber,
-        idFaceImage: user.faceData.idFaceImage,
+        phoneNumber: user.phoneNumber || null,
+        idFaceImage: user.faceData.idFaceImage, // Cropped face for verification
         liveFaceImage: user.faceData.liveFaceImage,
-        ocrData: ocrEditable, // Include extracted OCR data
-        documentData: user.documents[0] || null // Include document information
+        fullDocumentImage: docBase64, // Use docBase64 directly for full document image
+        ocrData: cleanedOcrData, // Include cleaned OCR data
+        documentData: documentData // Include cleaned document information
       });
 
       if (response.success) {
@@ -458,10 +834,11 @@ export default function RegistrationFlow() {
         setModalMessage("Registration failed: " + response.message);
         setShowModal(true);
       }
-    } catch (error) {
-      console.error("Registration error:", error);
+    } catch (err) {
+      console.error("Registration error:", err);
       setModalType('error');
-      setModalMessage("Registration failed: " + error.message);
+      setModalMessage("Registration failed: " + err.message);
+      setError("Registration failed: " + err.message);
       setShowModal(true);
     } finally {
       setSubmitting(false);
@@ -513,6 +890,7 @@ export default function RegistrationFlow() {
                setUser={setUser}
                canNext={canNextFromStep1}
                errors={errors}
+               setErrors={setErrors}
                onNext={() => {
                  if (validateStep1()) {
                    setUser((u) => ({ ...u, kycStatus: "pending" }));
@@ -528,6 +906,7 @@ export default function RegistrationFlow() {
               setUser={setUser}
               onBack={goBack}
               errors={errors}
+              setErrors={setErrors}
               onNext={() => {
                 if (validateStep2()) {
                   setUser((u) => ({ ...u, kycStatus: "password_set" }));
@@ -583,6 +962,7 @@ export default function RegistrationFlow() {
               submitting={submitting}
               processing={processing}
               processingMessage={processingMessage}
+              error={error}
             />
           )}
           </div>
@@ -636,7 +1016,8 @@ export default function RegistrationFlow() {
                 <button
                   onClick={() => {
                     setShowModal(false);
-                    if (modalType === 'success') {
+                    // Only redirect to login after final registration success
+                    if (modalType === 'success' && step === 5) {
                       navigate('/login');
                     }
                   }}
@@ -655,7 +1036,7 @@ export default function RegistrationFlow() {
 
 // --- Step components ---
 
-function Step1Basic({ user, setUser, onNext, canNext, errors }) {
+function Step1Basic({ user, setUser, onNext, canNext, errors, setErrors }) {
   const [dobInput, setDobInput] = useState("");
 
   useEffect(() => {
@@ -699,7 +1080,21 @@ function Step1Basic({ user, setUser, onNext, canNext, errors }) {
           <input
             type="email"
             value={user.email}
-            onChange={(e) => setUser((u) => ({ ...u, email: e.target.value }))}
+            onChange={(e) => {
+              const newEmail = e.target.value;
+              setUser((u) => ({ ...u, email: newEmail }));
+              
+              // Real-time validation
+              const newErrors = { ...errors };
+              if (!newEmail) {
+                newErrors.email = "Email is required";
+              } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail)) {
+                newErrors.email = "Please enter a valid email address";
+              } else {
+                delete newErrors.email;
+              }
+              setErrors(newErrors);
+            }}
             placeholder="Email Address"
             className={cx(
               "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
@@ -717,7 +1112,32 @@ function Step1Basic({ user, setUser, onNext, canNext, errors }) {
             type="text"
             inputMode="numeric"
             value={dobInput}
-            onChange={(e) => handleDobChange(e.target.value)}
+            onChange={(e) => {
+              const newDob = e.target.value;
+              handleDobChange(newDob);
+              
+              // Real-time validation
+              const newErrors = { ...errors };
+              if (!newDob) {
+                newErrors.birthDate = "Date of birth is required";
+              } else {
+                const parts = newDob.split("-");
+                if (parts.length === 3 && parts[2]?.length === 4) {
+                  const [dd, mm, yyyy] = parts.map((p) => parseInt(p, 10));
+                  if (dd && mm && yyyy) {
+                    const age = new Date().getFullYear() - yyyy;
+                    if (age < 18) {
+                      newErrors.birthDate = "You must be at least 18 years old";
+                    } else {
+                      delete newErrors.birthDate;
+                    }
+                  } else {
+                    newErrors.birthDate = "Please enter a valid date";
+                  }
+                }
+              }
+              setErrors(newErrors);
+            }}
             placeholder="dd-mm-yyyy"
             className={cx(
               "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
@@ -732,16 +1152,30 @@ function Step1Basic({ user, setUser, onNext, canNext, errors }) {
           <label className="text-sm text-slate-600">Phone Number</label>
           <input
             type="tel"
-            value={user.phoneNumber}
-            onChange={(e) => setUser((u) => ({ ...u, phoneNumber: e.target.value }))}
+            value={user.phoneNumber || ''}
+            onChange={(e) => {
+              const newPhone = e.target.value.trim();
+              setUser((u) => ({ ...u, phoneNumber: newPhone || null }));
+              
+              // Real-time validation
+              const newErrors = { ...errors };
+              if (newPhone && !/^\+?[\d\s-]{8,}$/.test(newPhone)) {
+                newErrors.phoneNumber = "Please enter a valid phone number";
+              } else {
+                delete newErrors.phoneNumber;
+              }
+              setErrors(newErrors);
+            }}
             placeholder="+61 234 567 890"
             className={cx(
               "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
               errors.phoneNumber ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
             )}
           />
-          {errors.phoneNumber && (
+          {errors.phoneNumber ? (
             <p className="mt-1 text-xs text-red-500">{errors.phoneNumber}</p>
+          ) : (
+            <p className="mt-1 text-xs text-slate-500">Optional - Enter phone number with country code</p>
           )}
         </div>
         <div>
@@ -753,7 +1187,19 @@ function Step1Basic({ user, setUser, onNext, canNext, errors }) {
                 errors.residency ? "border-red-500 focus:ring-red-500" : "border-slate-300 focus:ring-indigo-500"
               )}
               value={user.residency}
-              onChange={(e) => setUser((u) => ({ ...u, residency: e.target.value }))}
+              onChange={(e) => {
+                const newResidency = e.target.value;
+                setUser((u) => ({ ...u, residency: newResidency }));
+                
+                // Real-time validation
+                const newErrors = { ...errors };
+                if (!newResidency) {
+                  newErrors.residency = "Please select your residency";
+                } else {
+                  delete newErrors.residency;
+                }
+                setErrors(newErrors);
+              }}
             >
               <option value="" disabled>
                 Select Residency
@@ -790,7 +1236,7 @@ function Step1Basic({ user, setUser, onNext, canNext, errors }) {
   );
 }
 
-function Step2Password({ user, setUser, onBack, onNext, canNext, errors }) {
+function Step2Password({ user, setUser, onBack, onNext, canNext, errors, setErrors }) {
   return (
     <div>
       <h2 className="text-xl font-semibold text-center">Password Setup</h2>
@@ -801,7 +1247,23 @@ function Step2Password({ user, setUser, onBack, onNext, canNext, errors }) {
           <input
             type="password"
             value={user.password}
-            onChange={(e) => setUser((u) => ({ ...u, password: e.target.value }))}
+            onChange={(e) => {
+              const newPassword = e.target.value;
+              setUser((u) => ({ ...u, password: newPassword }));
+              
+              // Real-time validation
+              const newErrors = { ...errors };
+              if (!newPassword) {
+                newErrors.password = "Password is required";
+              } else if (newPassword.length < 6) {
+                newErrors.password = "Password must be at least 6 characters long";
+              } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])/.test(newPassword)) {
+                newErrors.password = "Password must contain at least one uppercase letter, lowercase letter, number, and special character";
+              } else {
+                delete newErrors.password;
+              }
+              setErrors(newErrors);
+            }}
             placeholder="Enter your password"
             className={cx(
               "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
@@ -820,7 +1282,21 @@ function Step2Password({ user, setUser, onBack, onNext, canNext, errors }) {
           <input
             type="password"
             value={user.confirmPassword}
-            onChange={(e) => setUser((u) => ({ ...u, confirmPassword: e.target.value }))}
+            onChange={(e) => {
+              const newConfirmPassword = e.target.value;
+              setUser((u) => ({ ...u, confirmPassword: newConfirmPassword }));
+              
+              // Real-time validation
+              const newErrors = { ...errors };
+              if (!newConfirmPassword) {
+                newErrors.confirmPassword = "Please confirm your password";
+              } else if (newConfirmPassword !== user.password) {
+                newErrors.confirmPassword = "Passwords do not match";
+              } else {
+                delete newErrors.confirmPassword;
+              }
+              setErrors(newErrors);
+            }}
             placeholder="Confirm your password"
             className={cx(
               "mt-2 w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2",
@@ -904,16 +1380,23 @@ function Step3Document({
             Extracted Information (Editable) <span className="text-red-500">*</span>
           </label>
           
-          {/* Document Type - First field, always empty for user input */}
+          {/* Document Type Dropdown */}
           <div>
             <label className="text-xs text-slate-500 mb-1 block">Document Type *</label>
-            <input
-              className="rounded-xl border px-4 py-3 w-full"
-              placeholder="Enter document type (e.g., PAN Card, Aadhaar Card, Passport)"
+            <select
+              className="rounded-xl border px-4 py-3 w-full bg-white"
               value={ocrEditable.documentType}
               onChange={(e) => setOcrEditable((o) => ({ ...o, documentType: e.target.value }))}
               required
-            />
+            >
+              <option value="">Select Document Type</option>
+              <option value="Passport">Passport</option>
+              <option value="National ID">National ID</option>
+              <option value="Driver's License">Driver's License</option>
+              <option value="Aadhaar Card">Aadhaar Card</option>
+              <option value="PAN Card">PAN Card</option>
+              <option value="Voter ID">Voter ID</option>
+            </select>
           </div>
 
           {/* Full Name */}
@@ -936,8 +1419,15 @@ function Step3Document({
               className="rounded-xl border px-4 py-3 w-full"
               placeholder="DD-MM-YYYY"
               value={ocrEditable.dob}
-              onChange={(e) => setOcrEditable((o) => ({ ...o, dob: e.target.value }))}
-              pattern="\d{2}-\d{2}-\d{4}"
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                let formatted = '';
+                if (val.length > 0) formatted = val.substring(0, 2);
+                if (val.length > 2) formatted += '-' + val.substring(2, 4);
+                if (val.length > 4) formatted += '-' + val.substring(4, 8);
+                setOcrEditable((o) => ({ ...o, dob: formatted }));
+              }}
+              maxLength="10"
               required
             />
           </div>
@@ -1054,11 +1544,18 @@ function Step4Liveness({
             Start Camera
           </button>
         ) : (
-          <button onClick={captureSnapshot} disabled={!cameraReady || processing} className={cx(
-            "flex-1 min-w-[140px] rounded-xl border px-4 py-3",
-            cameraReady && !processing ? "hover:bg-slate-50" : "opacity-50 cursor-not-allowed"
-          )}>
-            {processing ? "Processing..." : "Capture"}
+          <button 
+            onClick={captureSnapshot} 
+            disabled={!cameraReady || processing} 
+            className={cx(
+              "flex-1 min-w-[140px] rounded-xl border px-4 py-3 transition-all",
+              cameraReady && !processing 
+                ? "hover:bg-slate-50 border-indigo-600 text-indigo-600" 
+                : "opacity-50 cursor-not-allowed border-slate-300 text-slate-400"
+            )}
+            title={!cameraReady ? "Please wait for camera to initialize..." : "Capture your face"}
+          >
+            {processing ? "Processing..." : cameraReady ? "Capture" : "Initializing..."}
           </button>
         )}
         <button onClick={onNext} disabled={!canNext} className={cx(
@@ -1072,7 +1569,7 @@ function Step4Liveness({
   );
 }
 
-function Step5Confirmation({ user, onBack, onComplete, submitting, processing, processingMessage }) {
+function Step5Confirmation({ user, onBack, onComplete, submitting, processing, processingMessage, error }) {
   const success = user.faceData.faceMatched;
 
   return (
@@ -1084,7 +1581,7 @@ function Step5Confirmation({ user, onBack, onComplete, submitting, processing, p
           <p className="text-sm text-slate-600 mb-2">ID Photo</p>
           <div className="aspect-[4/3] rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden">
             {user.faceData.idFaceImage ? (
-              <img src={user.faceData.idFaceImage} alt="ID" className="w-full h-full object-cover rounded-xl" />
+              <img src={user.faceData.idFaceImage} alt="ID" className="w-full h-full object-contain rounded-xl" />
             ) : (
               <div className="text-slate-400 text-3xl">📷 ID Document Photo</div>
             )}
@@ -1094,7 +1591,7 @@ function Step5Confirmation({ user, onBack, onComplete, submitting, processing, p
           <p className="text-sm text-slate-600 mb-2">Live Capture</p>
           <div className="aspect-[4/3] rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden">
             {user.faceData.liveFaceImage ? (
-              <img src={user.faceData.liveFaceImage} alt="Live" className="w-full h-full object-cover rounded-xl" />
+              <img src={user.faceData.liveFaceImage} alt="Live" className="w-full h-full object-contain rounded-xl" />
             ) : (
               <div className="text-slate-400 text-3xl">📷 Your Live Photo</div>
             )}
@@ -1128,8 +1625,14 @@ function Step5Confirmation({ user, onBack, onComplete, submitting, processing, p
         </p>
       </div>
 
+      {error && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+
       <div className="mt-6 flex gap-3">
-        <button onClick={onBack} className="flex-1 rounded-xl border px-4 py-3 hover:bg-slate-50">
+        <button onClick={onBack} className="w-24 rounded-xl border px-4 py-3 hover:bg-slate-50">
           Back
         </button>
         <button
@@ -1142,7 +1645,7 @@ function Step5Confirmation({ user, onBack, onComplete, submitting, processing, p
               : "bg-indigo-300 cursor-not-allowed"
           )}
         >
-          {processing ? "Verifying..." : submitting ? "Completing..." : "Complete Registration"}
+          {processing ? "Verifying..." : submitting ? "Registering..." : "Register"}
         </button>
       </div>
     </div>

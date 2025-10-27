@@ -443,19 +443,19 @@ export default function DocumentManager() {
                 <div className="border rounded-xl p-4">
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="font-medium text-slate-700">Uploaded Documents</h3>
-                        {documents.length > 0 && (
+                        {documents.filter(doc => doc.type === 'id_document').length > 0 && (
                             <span className="text-xs lg:text-sm text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1">
                                 <CheckIcon className="w-3 h-3" />
-                                {documents.filter(doc => doc.verified).length} Verified
+                                {documents.filter(doc => doc.type === 'id_document' && doc.verified).length} Verified
                             </span>
                         )}
                     </div>
                     
-                    {documents.length === 0 ? (
+                    {documents.filter(doc => doc.type === 'id_document').length === 0 ? (
                         <p className="text-slate-500 text-center py-8">No documents uploaded yet</p>
                     ) : (
                         <div className="grid gap-3">
-                        {documents.map((doc) => {
+                        {documents.filter(doc => doc.type === 'id_document').map((doc) => {
                             const { icon: IconComponent, bgColor, iconColor } = getDocumentIcon(doc.type);
                             const isBlockchainStored = doc.blockchainData?.blockchainStored;
                             

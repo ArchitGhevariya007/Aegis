@@ -16,6 +16,7 @@ const facePipeline = require('../services/facePipeline');
 const blockchainService = require('../services/blockchainService');
 const geolocationService = require('../services/geolocationService');
 const { performSecurityChecks } = require('../services/securityDetectionService');
+const { sendLoginNotification, sendWelcomeEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -46,17 +47,28 @@ router.post('/register', validateRegistration, async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
 
+    // Clean up and validate data
+    const cleanPhoneNumber = phoneNumber ? phoneNumber.trim() : null;
+    const cleanOcrData = ocrData ? {
+      documentType: ocrData.documentType || null,
+      name: ocrData.name || null,
+      dob: ocrData.dob || null,
+      idNumber: ocrData.idNumber || null,
+      address: ocrData.address || null
+    } : null;
+
     console.log('Registration request received:', {
       email,
-      phoneNumber,
+      phoneNumber: cleanPhoneNumber || 'Not provided',
       hasIdFaceImage: !!idFaceImage,
       hasLiveFaceImage: !!liveFaceImage,
       idFaceImageLength: idFaceImage?.length || 0,
       liveFaceImageLength: liveFaceImage?.length || 0,
-      hasOcrData: !!ocrData,
-      ocrData: ocrData,
+      hasOcrData: !!cleanOcrData,
+      ocrData: cleanOcrData,
       hasDocumentData: !!documentData,
-      documentData: documentData
+      documentData: documentData,
+      hasFullDocument: !!req.body.fullDocumentImage
     });
 
     // Check if user already exists
@@ -97,13 +109,13 @@ router.post('/register', validateRegistration, async (req, res) => {
       });
     }
 
-    // Create new user with verified face data
+    // Create new user with verified face data and full document
     const user = new User({
       email,
       password,
       birthDate: new Date(birthDate),
       residency,
-      phoneNumber: phoneNumber || null,
+      phoneNumber: cleanPhoneNumber,
       kycStatus: 'completed',
       isActive: true,
       faceData: {
@@ -114,19 +126,62 @@ router.post('/register', validateRegistration, async (req, res) => {
       },
       documents: [
         {
+          type: 'id_document',
+          fileName: 'id_document.jpg',
+          verified: true,
+          blockchainData: await (async () => {
+            try {
+              // Get the full document image
+              if (!req.body.fullDocumentImage) {
+                throw new Error('Full document image is required');
+              }
+
+              // Convert base64 to buffer
+              const base64Data = req.body.fullDocumentImage.split(',')[1];
+              const buffer = Buffer.from(base64Data, 'base64');
+              
+              // Store on blockchain
+              console.log('📄 Storing ID document on blockchain...');
+              console.log(`   Document size: ${buffer.length} bytes`);
+              
+              const result = await blockchainService.storeDocument(buffer, 'id_document.jpg', email);
+              console.log('✅ Document stored on blockchain:', result.transactionHash);
+              console.log(`   IPFS Hash: ${result.ipfsHash}`);
+              
+              return {
+                documentHash: result.documentHash,
+                ipfsHash: result.ipfsHash,
+                encryptionKey: result.encryptionKey,
+                encryptionIV: result.encryptionIV,
+                transactionHash: result.transactionHash,
+                blockNumber: result.blockNumber,
+                documentId: result.documentId,
+                blockchainStored: true,
+                timestamp: new Date().toISOString()
+              };
+            } catch (error) {
+              console.error('❌ Failed to store document on blockchain:', error);
+              return {
+                blockchainStored: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+              };
+            }
+          })(),
+          // Attach cleaned OCR data to the ID document
+          ocrData: cleanOcrData || {
+            documentType: null,
+            name: null,
+            dob: null,
+            idNumber: null,
+            address: null
+          }
+        },
+        {
           type: 'id_face',
           fileName: 'id_face_image.jpg',
           filePath: faceComparison.idCroppedFace,
-          verified: true,
-          // Attach OCR data to the ID face document
-          ocrData: ocrData ? {
-            name: ocrData.name || null,
-            dob: ocrData.dob || null, // Keep as string, don't convert to Date
-            idNumber: ocrData.idNumber || null,
-            documentType: ocrData.documentType || null,
-            address: ocrData.address || null,
-            nationality: ocrData.nationality || null
-          } : {}
+          verified: true
         },
         {
           type: 'live_face',
@@ -146,6 +201,9 @@ router.post('/register', validateRegistration, async (req, res) => {
     await user.save();
     
     console.log(`[BLOCKCHAIN] Generated blockchain data for new user ${user.email}`);
+
+    // Send welcome email
+    await sendWelcomeEmail(user.email);
 
     // Log successful registration
     await user.logAccess('registration', true, ipAddress, userAgent);
@@ -269,10 +327,27 @@ router.post('/login', validateLogin, async (req, res) => {
     const crypto = require('crypto');
     const sessionId = crypto.randomBytes(32).toString('hex');
 
-    // Track login location and perform security checks
+
+    // Generate JWT token with session ID
+    const token = jwt.sign(
+      { userId: user._id, sessionId: sessionId },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    // Get location data and send email notification
     try {
       const locationData = await geolocationService.getCompleteLocationData(req);
       
+      // Send email notification if enabled
+      if (user.notificationSettings?.emailNotifications) {
+        await sendLoginNotification(user.email, {
+          ipAddress,
+          userAgent,
+          location: locationData
+        });
+      }
+
       // Mark all previous sessions for this user as inactive
       await LoginLocation.updateMany(
         { userId: user._id, isActive: true },
@@ -284,7 +359,8 @@ router.post('/login', validateLogin, async (req, res) => {
         }
       );
       
-      const loginLocation = await LoginLocation.create({
+      // Create new login location record
+      await LoginLocation.create({
         userId: user._id,
         userEmail: user.email,
         sessionId: sessionId,
@@ -294,20 +370,13 @@ router.post('/login', validateLogin, async (req, res) => {
         isActive: true,
         lastActivity: new Date()
       });
-      console.log(`[LOCATION] Tracked login location for ${user.email} with session ${sessionId}`);
       
-      // Perform security checks for impossible travel, location switches, etc.
-      await performSecurityChecks(user._id, user.email, loginLocation, ipAddress, 'login');
+      // Perform security checks
+      await performSecurityChecks(user._id, user.email, locationData, ipAddress, 'login');
     } catch (locError) {
       console.error('[LOCATION] Error tracking login location:', locError.message);
+      // Continue even if location tracking fails
     }
-
-    // Generate JWT token with session ID
-    const token = jwt.sign(
-      { userId: user._id, sessionId: sessionId },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
 
     res.json({
       success: true,
@@ -945,14 +1014,44 @@ router.get('/view-document/:documentId', auth, async (req, res) => {
       });
     }
 
-    // For base64 stored images (from registration)
-    if (document.filePath && document.filePath.startsWith('data:image')) {
-      const base64Data = document.filePath.split(',')[1];
-      const buffer = Buffer.from(base64Data, 'base64');
-      
-      res.setHeader('Content-Type', 'image/jpeg');
-      res.send(buffer);
-      return;
+    // For blockchain-stored documents
+    if (document.blockchainData?.blockchainStored) {
+      try {
+        console.log(`📄 Retrieving document from blockchain: ${document.fileName}`);
+        console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
+        
+        // Retrieve and decrypt from IPFS
+        const result = await blockchainService.retrieveDocumentFromIPFS(
+          document.blockchainData.ipfsHash,
+          document.blockchainData.encryptionKey,
+          document.blockchainData.encryptionIV,
+          req.user.email
+        );
+        
+        // Verify document integrity
+        const isValid = await blockchainService.verifyDocument(
+          result.documentBuffer,
+          document.blockchainData.documentHash
+        );
+        
+        if (!isValid) {
+          return res.status(400).json({
+            success: false,
+            message: 'Document integrity verification failed'
+          });
+        }
+        
+        console.log('✅ Document retrieved and verified from blockchain');
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.send(result.documentBuffer);
+        return;
+      } catch (error) {
+        console.error('Error retrieving document from blockchain:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to retrieve document from blockchain'
+        });
+      }
     }
 
     // For file system stored documents

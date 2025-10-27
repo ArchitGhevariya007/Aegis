@@ -189,6 +189,8 @@ function parseSCRFDOutputs(results, inputSize) {
         const centerY = (gridY + 0.5) * stride;
         
         // Apply deltas (SCRFD distance encoding)
+        // Don't expand at detection - just use the raw SCRFD detection
+        // We'll do ALL expansion during cropping to avoid boundary issues
         const x1 = centerX - dx * stride;
         const y1 = centerY - dy * stride;
         const x2 = centerX + dw * stride;
@@ -294,24 +296,47 @@ async function cropFaceFromImage(base64, faceBox, targetSize = 112) {
   let width = Math.floor(faceBox.width * scaleX);
   let height = Math.floor(faceBox.height * scaleY);
   
-  // Expand the crop area by 20% for better face context (important for ArcFace)
-  const expandRatio = 0.2;
-  const expandX = Math.floor(width * expandRatio);
-  const expandY = Math.floor(height * expandRatio);
+  // Add generous padding (50%) on all sides to ensure full face + context
+  const padding = 0.5;
+  const padX = Math.floor(width * padding);
+  const padY = Math.floor(height * padding);
   
-  x = Math.max(0, x - expandX);
-  y = Math.max(0, y - expandY);
-  width = Math.min(imgWidth - x, width + 2 * expandX);
-  height = Math.min(imgHeight - y, height + 2 * expandY);
+  // Expand the box equally on all sides
+  x = x - padX;
+  y = y - padY;
+  width = width + 2 * padX;
+  height = height + 2 * padY;
   
-  // Ensure we have a square crop for ArcFace (which expects square input)
-  const size = Math.max(width, height);
+  // Calculate center
   const centerX = x + width / 2;
   const centerY = y + height / 2;
   
-  const squareX = Math.max(0, Math.floor(centerX - size / 2));
-  const squareY = Math.max(0, Math.floor(centerY - size / 2));
-  const squareSize = Math.min(size, Math.min(imgWidth - squareX, imgHeight - squareY));
+  // Make it square by using the larger dimension
+  const size = Math.max(width, height);
+  
+  // Center the square on the face
+  let squareX = Math.floor(centerX - size / 2);
+  let squareY = Math.floor(centerY - size / 2);
+  
+  // Now clamp to image bounds, adjusting both position and size if needed
+  if (squareX < 0) {
+    squareX = 0;
+  }
+  if (squareY < 0) {
+    squareY = 0;
+  }
+  
+  // Calculate how much space is available
+  let squareSize = size;
+  if (squareX + squareSize > imgWidth) {
+    squareSize = imgWidth - squareX;
+  }
+  if (squareY + squareSize > imgHeight) {
+    squareSize = Math.min(squareSize, imgHeight - squareY);
+  }
+  
+  // Ensure minimum size
+  squareSize = Math.max(squareSize, Math.min(width, height));
   
   // Face cropping debug logs removed for cleaner console output
   

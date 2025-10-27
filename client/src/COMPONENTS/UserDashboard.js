@@ -5,7 +5,6 @@ import BlockchainDigitalID from "./UserDashboard/BlockchainDigitalID";
 import DocumentManager from "./UserDashboard/DocumentManager";
 import AccessLogViewer from "./UserDashboard/AccessLogViewer";
 import NotificationCenter from "./UserDashboard/NotificationCenter";
-import PermissionControlPanel from "./UserDashboard/PermissionControlPanel";
 import VotingSection from "./UserDashboard/VotingSection";
 
 // Icon Components
@@ -39,8 +38,7 @@ export default function UserDashboard() {
         { key: "blockchain", label: "Blockchain ID" },
         { key: "documents", label: "Documents" },
         { key: "accessLogs", label: "Access Logs" },
-        { key: "notifications", label: "Notifications" },
-        { key: "permissions", label: "Permissions" }
+        { key: "notifications", label: "Notifications" }
     ];
 
     return (
@@ -169,19 +167,28 @@ export default function UserDashboard() {
                                 ))}
                             </div>
 
-                            {/* Mobile/Tablet Dropdown */}
+                            {/* Mobile/Tablet - Horizontal Scrollable Pills */}
                             <div className="lg:hidden">
-                                <select
-                                    value={activeTab}
-                                    onChange={(e) => setActiveTab(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                >
-                                    {tabs.map((tab) => (
-                                        <option key={tab.key} value={tab.key}>
-                                            {tab.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+                                    <div className="flex gap-2 w-max">
+                                        {tabs.map((tab) => (
+                                            <button
+                                                key={tab.key}
+                                                onClick={() => setActiveTab(tab.key)}
+                                                className={`
+                                                    flex-shrink-0 px-4 py-2 rounded-lg font-medium text-sm 
+                                                    transition-all whitespace-nowrap
+                                                    ${activeTab === tab.key
+                                                        ? "bg-indigo-600 text-white shadow-sm"
+                                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                                    }
+                                                `}
+                                            >
+                                                {tab.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -202,7 +209,6 @@ export default function UserDashboard() {
                         {activeTab === "documents" && <DocumentManager />}
                         {activeTab === "accessLogs" && <AccessLogViewer />}
                         {activeTab === "notifications" && <NotificationCenter />}
-                        {activeTab === "permissions" && <PermissionControlPanel />}
                     </>
                 )}
 

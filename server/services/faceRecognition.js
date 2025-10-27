@@ -123,12 +123,14 @@ async function compareFaces(idImage, liveImage) {
     const similarity = cosineSimilarity(embedding1, embedding2);
     const threshold = parseFloat(process.env.FACE_MATCH_THRESHOLD || '0.6'); // Default threshold as per your spec
     const safeSimilarity = Number.isFinite(similarity) ? similarity : -1;
+    const isMatch = safeSimilarity >= threshold;
     
-    // Debug logging removed for cleaner console output
+    // Log the comparison result
+    console.log(`[FACE MATCH] Similarity: ${(safeSimilarity * 100).toFixed(2)}% | Threshold: ${(threshold * 100).toFixed(0)}% | Match: ${isMatch ? '✅ YES' : '❌ NO'}`);
     
     return { 
       similarity: safeSimilarity, 
-      is_match: safeSimilarity >= threshold,
+      is_match: isMatch,
       embedding1: embedding1.slice(0, 10), // Return first 10 dims for debugging
       embedding2: embedding2.slice(0, 10),
       threshold: threshold

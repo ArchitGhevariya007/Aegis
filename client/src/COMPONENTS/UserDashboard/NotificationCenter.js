@@ -9,7 +9,6 @@ const BellIcon = ({ className = "w-4 h-4" }) => (
 export default function NotificationCenter() {
     const [settings, setSettings] = useState({
         emailNotifications: true,
-        smsNotifications: false,
         pushNotifications: true
     });
     const [loading, setLoading] = useState(true);
@@ -116,28 +115,6 @@ export default function NotificationCenter() {
                             className="sr-only peer" 
                             checked={settings.emailNotifications}
                             onChange={() => handleToggle('emailNotifications')}
-                            disabled={saving}
-                        />
-                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-indigo-600 relative
-                after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white
-                after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
-                    </label>
-                </div>
-
-                {/* SMS Notifications Toggle */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex-1">
-                        <p className="font-medium text-sm lg:text-base">SMS Notifications</p>
-                        <p className="text-slate-500 text-xs lg:text-sm mt-1">
-                            Receive security alerts via SMS for critical activities
-                        </p>
-                    </div>
-                    <label className="inline-flex items-center cursor-pointer flex-shrink-0">
-                        <input 
-                            type="checkbox" 
-                            className="sr-only peer" 
-                            checked={settings.smsNotifications}
-                            onChange={() => handleToggle('smsNotifications')}
                             disabled={saving}
                         />
                         <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-indigo-600 relative
