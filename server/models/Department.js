@@ -5,8 +5,7 @@ const departmentSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
-        unique: true,
-        enum: ['Income Tax Department', 'Medical Department', 'Immigration Department']
+        unique: true
     },
     code: {
         type: String,

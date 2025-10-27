@@ -1,0 +1,83 @@
+{
+  "navbar": {
+    "dashboard": "Panel de Control",
+    "voting": "Votación",
+    "logout": "Cerrar Sesión",
+    "role": "Rol",
+    "user": "Usuario",
+    "admin": "Administrador",
+    "administrator": "Administrador",
+    "language": "Idioma"
+  },
+  "dashboard": {
+    "title": "Panel de Control del Usuario",
+    "subtitle": "Administra tu identidad digital y permisos de acceso",
+    "overview": "Resumen",
+    "blockchainId": "ID Blockchain",
+    "documents": "Documentos",
+    "accessLogs": "Registros de Acceso",
+    "notifications": "Notificaciones"
+  },
+  "adminDashboard": {
+    "title": "Panel de Control Administrativo",
+    "subtitle": "Monitorea la seguridad del sistema y gestiona la infraestructura de identidad digital",
+    "overview": "Resumen",
+    "locationMap": "Mapa de Ubicación",
+    "securityAlerts": "Alertas de Seguridad",
+    "manageRoles": "Administrar Roles",
+    "manageDepartments": "Administrar Departamentos",
+    "emergency": "Emergencia",
+    "votingSystem": "Sistema de Votación"
+  },
+  "documents": {
+    "title": "Gestor de Documentos",
+    "uploadTitle": "Cargar documentos adicionales",
+    "chooseFile": "Elegir Archivo",
+    "uploadedDocuments": "Documentos Cargados",
+    "noDocuments": "No hay documentos cargados aún",
+    "verified": "Verificado",
+    "view": "Ver",
+    "download": "Descargar",
+    "decryptDownload": "Desencriptar y Descargar",
+    "delete": "Eliminar",
+    "verify": "Verificar",
+    "uploaded": "Cargado",
+    "blockchain": "Blockchain",
+    "encrypted": "Encriptado",
+    "verificationStatus": "Estado de Verificación",
+    "documentAuthenticity": "Autenticidad del Documento",
+    "faceMatch": "Coincidencia de Rostro",
+    "livenessCheck": "Comprobación de Vida"
+  },
+  "voting": {
+    "title": "Sistema de Votación",
+    "startVoting": "Iniciar Votación",
+    "stopVoting": "Detener Votación",
+    "castVote": "Emitir Voto",
+    "results": "Resultados",
+    "noVoting": "No hay votación activa. Puedes enviar tu voto cuando esté disponible",
+    "selectParty": "Selecciona un partido",
+    "verifyFace": "Verifica tu Rostro",
+    "captureLive": "Capturar Rostro en Vivo",
+    "startCamera": "Iniciar Cámara",
+    "captureSnapshot": "Capturar Imagen",
+    "votes": "Votos",
+    "percentage": "Porcentaje",
+    "totalVotes": "Total de Votos",
+    "voters": "Votantes"
+  },
+  "common": {
+    "success": "Éxito",
+    "error": "Error",
+    "loading": "Cargando",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "close": "Cerrar",
+    "save": "Guardar",
+    "submit": "Enviar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "previous": "Anterior"
+  }
+}

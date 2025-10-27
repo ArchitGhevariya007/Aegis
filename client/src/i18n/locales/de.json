@@ -1,0 +1,83 @@
+{
+  "navbar": {
+    "dashboard": "Dashboard",
+    "voting": "Abstimmung",
+    "logout": "Abmelden",
+    "role": "Rolle",
+    "user": "Benutzer",
+    "admin": "Administrator",
+    "administrator": "Administrator",
+    "language": "Sprache"
+  },
+  "dashboard": {
+    "title": "Benutzer-Dashboard",
+    "subtitle": "Verwalte deine digitale Identität und Zugriffsberechtigungen",
+    "overview": "Übersicht",
+    "blockchainId": "Blockchain-ID",
+    "documents": "Dokumente",
+    "accessLogs": "Zugriffsprotokolle",
+    "notifications": "Benachrichtigungen"
+  },
+  "adminDashboard": {
+    "title": "Verwaltungs-Dashboard",
+    "subtitle": "Überwache die Systemsicherheit und verwalte die digitale Identitätsinfrastruktur",
+    "overview": "Übersicht",
+    "locationMap": "Standortkarte",
+    "securityAlerts": "Sicherheitswarnungen",
+    "manageRoles": "Rollen Verwalten",
+    "manageDepartments": "Abteilungen Verwalten",
+    "emergency": "Notfall",
+    "votingSystem": "Abstimmungssystem"
+  },
+  "documents": {
+    "title": "Dokumentverwaltung",
+    "uploadTitle": "Zusätzliche Dokumente hochladen",
+    "chooseFile": "Datei Auswählen",
+    "uploadedDocuments": "Hochgeladene Dokumente",
+    "noDocuments": "Noch keine Dokumente hochgeladen",
+    "verified": "Verifiziert",
+    "view": "Anzeigen",
+    "download": "Herunterladen",
+    "decryptDownload": "Entschlüsseln & Herunterladen",
+    "delete": "Löschen",
+    "verify": "Verifizieren",
+    "uploaded": "Hochgeladen",
+    "blockchain": "Blockchain",
+    "encrypted": "Verschlüsselt",
+    "verificationStatus": "Überprüfungsstatus",
+    "documentAuthenticity": "Dokumentauthentizität",
+    "faceMatch": "Gesichtserkennung",
+    "livenessCheck": "Echtheitsprüfung"
+  },
+  "voting": {
+    "title": "Abstimmungssystem",
+    "startVoting": "Abstimmung Starten",
+    "stopVoting": "Abstimmung Beenden",
+    "castVote": "Stimme Abgeben",
+    "results": "Ergebnisse",
+    "noVoting": "Keine aktive Abstimmung. Sie können abstimmen, wenn es verfügbar ist",
+    "selectParty": "Partei Auswählen",
+    "verifyFace": "Gesicht Verifizieren",
+    "captureLive": "Live-Gesicht Erfassen",
+    "startCamera": "Kamera Starten",
+    "captureSnapshot": "Foto Aufnehmen",
+    "votes": "Stimmen",
+    "percentage": "Prozentsatz",
+    "totalVotes": "Gesamtstimmen",
+    "voters": "Wähler"
+  },
+  "common": {
+    "success": "Erfolg",
+    "error": "Fehler",
+    "loading": "Wird geladen",
+    "confirm": "Bestätigen",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "close": "Schließen",
+    "save": "Speichern",
+    "submit": "Absenden",
+    "back": "Zurück",
+    "next": "Weiter",
+    "previous": "Zurück"
+  }
+}

@@ -57,14 +57,18 @@ function MapBounds({ locations }) {
   const map = useMap();
   
   useEffect(() => {
-    if (locations && locations.length > 0) {
-      const bounds = locations.map(loc => [
-        loc.coordinates[1] || 0,
-        loc.coordinates[0] || 0
-      ]);
-      
-      if (bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 6 });
+    if (locations && locations.length > 0 && map) {
+      try {
+        const bounds = locations.map(loc => [
+          loc.coordinates[1] || 0,
+          loc.coordinates[0] || 0
+        ]);
+        
+        if (bounds.length > 0 && map._container) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 6 });
+        }
+      } catch (error) {
+        console.warn('Error fitting map bounds:', error);
       }
     }
   }, [locations, map]);
@@ -273,6 +277,8 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
+          {mapData.locations && mapData.locations.length > 0 && <MapBounds locations={mapData.locations} />}
+          
           {mapData.locations && mapData.locations.map((location, index) => {
             const lat = location.coordinates[1] || 0;
             const lng = location.coordinates[0] || 0;
@@ -317,7 +323,6 @@ export default function LocationMapPanel({ miniMode = false, activityLimit = 10 
             );
           })}
           
-          <MapBounds locations={mapData.locations} />
         </MapContainer>
       </div>
 

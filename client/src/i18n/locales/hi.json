@@ -1,0 +1,83 @@
+{
+  "navbar": {
+    "dashboard": "डैशबोर्ड",
+    "voting": "मतदान",
+    "logout": "लॉग आउट",
+    "role": "भूमिका",
+    "user": "उपयोगकर्ता",
+    "admin": "प्रशासक",
+    "administrator": "प्रशासक",
+    "language": "भाषा"
+  },
+  "dashboard": {
+    "title": "उपयोगकर्ता डैशबोर्ड",
+    "subtitle": "अपनी डिजिटल पहचान और एक्सेस अनुमतियों का प्रबंधन करें",
+    "overview": "सारांश",
+    "blockchainId": "ब्लॉकचेन आईडी",
+    "documents": "दस्तावेज़",
+    "accessLogs": "एक्सेस लॉग",
+    "notifications": "सूचनाएं"
+  },
+  "adminDashboard": {
+    "title": "प्रशासनिक डैशबोर्ड",
+    "subtitle": "सिस्टम सुरक्षा की निगरानी करें और डिजिटल पहचान अवसंरचना का प्रबंधन करें",
+    "overview": "सारांश",
+    "locationMap": "स्थान मानचित्र",
+    "securityAlerts": "सुरक्षा सतर्कताएं",
+    "manageRoles": "भूमिकाओं का प्रबंधन",
+    "manageDepartments": "विभागों का प्रबंधन",
+    "emergency": "आपातकाल",
+    "votingSystem": "मतदान प्रणाली"
+  },
+  "documents": {
+    "title": "दस्तावेज़ प्रबंधक",
+    "uploadTitle": "अतिरिक्त दस्तावेज़ अपलोड करें",
+    "chooseFile": "फ़ाइल चुनें",
+    "uploadedDocuments": "अपलोड किए गए दस्तावेज़",
+    "noDocuments": "अभी तक कोई दस्तावेज़ अपलोड नहीं किया गया",
+    "verified": "सत्यापित",
+    "view": "देखें",
+    "download": "डाउनलोड",
+    "decryptDownload": "डिक्रिप्ट और डाउनलोड",
+    "delete": "हटाएं",
+    "verify": "सत्यापित करें",
+    "uploaded": "अपलोड किया गया",
+    "blockchain": "ब्लॉकचेन",
+    "encrypted": "एन्क्रिप्ट किया गया",
+    "verificationStatus": "सत्यापन स्थिति",
+    "documentAuthenticity": "दस्तावेज़ की प्रामाणिकता",
+    "faceMatch": "चेहरे का मिलान",
+    "livenessCheck": "जीवन परीक्षण"
+  },
+  "voting": {
+    "title": "मतदान प्रणाली",
+    "startVoting": "मतदान शुरू करें",
+    "stopVoting": "मतदान बंद करें",
+    "castVote": "वोट डालें",
+    "results": "परिणाम",
+    "noVoting": "कोई सक्रिय मतदान नहीं है। जब यह उपलब्ध हो तो आप वोट दे सकते हैं",
+    "selectParty": "पार्टी चुनें",
+    "verifyFace": "अपना चेहरा सत्यापित करें",
+    "captureLive": "लाइव चेहरा कैप्चर करें",
+    "startCamera": "कैमरा शुरू करें",
+    "captureSnapshot": "स्नैपशॉट कैप्चर करें",
+    "votes": "वोट",
+    "percentage": "प्रतिशत",
+    "totalVotes": "कुल वोट",
+    "voters": "मतदाता"
+  },
+  "common": {
+    "success": "सफल",
+    "error": "त्रुटि",
+    "loading": "लोड हो रहा है",
+    "confirm": "पुष्टि करें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "close": "बंद करें",
+    "save": "सहेजें",
+    "submit": "जमा करें",
+    "back": "वापस",
+    "next": "अगला",
+    "previous": "पिछला"
+  }
+}

@@ -73,22 +73,27 @@ export const authAPI = {
   // User login (unified for user, admin, and department)
   login: async (email, password) => {
     try {
-      // Check if this is a department login
-      const isDepartment = email.match(/@(immi|income|medical)\.com$/);
-      if (isDepartment) {
-        return apiCall('/departments/login', {
-          method: 'POST',
-          body: JSON.stringify({ email, password }),
-        });
-      }
-
-      // Check if this is an admin
+      // First check if this is an admin
       const checkResult = await authAPI.checkAdmin(email);
       if (checkResult.isAdmin) {
         return apiCall('/admin/login', {
           method: 'POST',
           body: JSON.stringify({ email, password }),
         });
+      }
+
+      // Try department login first (works with any domain)
+      try {
+        const deptResult = await apiCall('/departments/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        if (deptResult.success) {
+          return deptResult;
+        }
+      } catch (deptError) {
+        // Department login failed, try regular user login
+        console.log('[LOGIN] Department login failed, trying user login');
       }
 
       // Regular user login
@@ -302,6 +307,40 @@ export const departmentAPI = {
     return apiCall('/departments/admin/summary/all', {
       headers: {
         'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  // Create new department (admin)
+  create: async (departmentData, token) => {
+    return apiCall('/departments/admin/create', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(departmentData),
+    });
+  },
+
+  // Reset department password (admin)
+  resetPassword: async (id, token) => {
+    return apiCall(`/departments/admin/${id}/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // Delete department (admin)
+  delete: async (id, token) => {
+    return apiCall(`/departments/admin/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
     });
   },

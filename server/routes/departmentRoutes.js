@@ -34,15 +34,13 @@ const getContentType = (fileName) => {
 
 // Helper function to check department email
 const isDepartmentEmail = (email) => {
-    const domains = ['@immi.com', '@income.com', '@medical.com'];
-    return domains.some(domain => email.endsWith(domain));
+    // Allow any email format for departments (no domain restriction)
+    return email && email.includes('@');
 };
 
 // Helper function to get department type from email
 const getDepartmentType = (email) => {
-    if (email.endsWith('@immi.com')) return 'Immigration Department';
-    if (email.endsWith('@income.com')) return 'Income Tax Department';
-    if (email.endsWith('@medical.com')) return 'Medical Department';
+    // No longer restricted to specific domains
     return null;
 };
 
@@ -51,7 +49,10 @@ router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        console.log('[DEPT LOGIN] Login attempt:', { email });
+
         if (!isDepartmentEmail(email)) {
+            console.log('[DEPT LOGIN] Invalid email format:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid department credentials'
@@ -60,14 +61,20 @@ router.post('/login', async (req, res) => {
 
         const department = await Department.findOne({ email });
         if (!department) {
+            console.log('[DEPT LOGIN] Department not found:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid department credentials'
             });
         }
 
+        console.log('[DEPT LOGIN] Department found:', { name: department.name, email: department.email });
+
         const isMatch = await department.comparePassword(password);
+        console.log('[DEPT LOGIN] Password comparison result:', isMatch);
+        
         if (!isMatch) {
+            console.log('[DEPT LOGIN] Password mismatch for:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid department credentials'
@@ -84,6 +91,8 @@ router.post('/login', async (req, res) => {
         department.lastLogin = new Date();
         await department.save();
 
+        console.log('[DEPT LOGIN] Login successful for:', email);
+
         res.json({
             success: true,
             token,
@@ -95,7 +104,7 @@ router.post('/login', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Department login error:', error);
+        console.error('[DEPT LOGIN] Error:', error);
         res.status(500).json({
             success: false,
             message: 'Login failed'
@@ -449,6 +458,7 @@ router.get('/view-document/:documentId', departmentAuth, async (req, res) => {
 router.get('/admin/all', adminAuth, async (req, res) => {
     try {
         const departments = await Department.find({});
+        
         res.json({
             success: true,
             departments
@@ -678,6 +688,200 @@ router.get('/admin/summary/all', adminAuth, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to fetch department summary'
+        });
+    }
+});
+
+// Create new department (for admin)
+router.post('/admin/create', adminAuth, async (req, res) => {
+    try {
+        const { name, code, email, password, description } = req.body;
+
+        // Validate required fields
+        if (!name || !code || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Department name, code, email, and password are required'
+            });
+        }
+
+        // Check if department already exists
+        const existing = await Department.findOne({ 
+            $or: [{ name }, { code }, { email }] 
+        });
+
+        if (existing) {
+            return res.status(400).json({
+                success: false,
+                message: 'Department with this name, code, or email already exists'
+            });
+        }
+
+        // Default permissions structure
+        const defaultPermissions = [
+            {
+                category: 'Basic Information',
+                fields: [
+                    { name: 'Full Name', enabled: true },
+                    { name: 'Email', enabled: true },
+                    { name: 'Date of Birth', enabled: true },
+                    { name: 'Phone Number', enabled: false },
+                    { name: 'Current Address', enabled: false },
+                    { name: 'Age', enabled: false },
+                    { name: 'Blood Type', enabled: false },
+                    { name: 'Nationality', enabled: false },
+                    { name: 'Place of Birth', enabled: false }
+                ]
+            },
+            {
+                category: 'Document Access',
+                fields: [
+                    { name: 'Medical History', enabled: false },
+                    { name: 'Insurance Policy', enabled: false },
+                    { name: 'Tax Returns', enabled: false },
+                    { name: 'Payslips', enabled: false },
+                    { name: 'Passport', enabled: false },
+                    { name: 'Visa', enabled: false },
+                    { name: 'Criminal History', enabled: false },
+                    { name: 'Work Permit', enabled: false }
+                ]
+            }
+        ];
+
+        const newDepartment = new Department({
+            name,
+            code,
+            email,
+            password,
+            description: description || '',
+            permissions: defaultPermissions,
+            isActive: true
+        });
+
+        await newDepartment.save();
+
+        console.log(`[DEPARTMENTS] New department created: ${name}`);
+
+        res.status(201).json({
+            success: true,
+            message: 'Department created successfully',
+            department: {
+                id: newDepartment._id,
+                name: newDepartment.name,
+                code: newDepartment.code,
+                email: newDepartment.email,
+                password: password  // Return plaintext only in creation response
+            }
+        });
+    } catch (error) {
+        console.error('Failed to create department:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create department',
+            error: error.message
+        });
+    }
+});
+
+// Reset department password (for admin)
+router.post('/admin/:id/reset-password', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const department = await Department.findById(id);
+
+        if (!department) {
+            return res.status(404).json({
+                success: false,
+                message: 'Department not found'
+            });
+        }
+
+        // Generate a random password
+        const newPassword = Math.random().toString(36).slice(-12) + 'A1!';
+
+        department.password = newPassword;
+        await department.save();
+
+        console.log(`[DEPARTMENTS] Password reset for: ${department.name}`);
+
+        res.json({
+            success: true,
+            message: 'Password reset successfully',
+            password: newPassword  // Return plaintext only in response
+        });
+    } catch (error) {
+        console.error('Failed to reset password:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to reset password',
+            error: error.message
+        });
+    }
+});
+
+// Get decrypted password for display (admin only)
+router.post('/admin/:id/get-password', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const department = await Department.findById(id);
+
+        if (!department) {
+            return res.status(404).json({
+                success: false,
+                message: 'Department not found'
+            });
+        }
+
+        // For security, we can't decrypt bcrypt hashes, but we can show that password verification works
+        // Instead, we return a message that the password must be reset if forgotten
+        res.json({
+            success: true,
+            message: 'Password stored securely as hash. Use reset function to generate a new password.',
+            department: {
+                id: department._id,
+                name: department.name,
+                email: department.email,
+                passwordHashed: true
+            }
+        });
+    } catch (error) {
+        console.error('Failed to get password:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get password'
+        });
+    }
+});
+
+// Delete department (admin only)
+router.delete('/admin/:id', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const department = await Department.findByIdAndDelete(id);
+
+        if (!department) {
+            return res.status(404).json({
+                success: false,
+                message: 'Department not found'
+            });
+        }
+
+        console.log(`[DEPARTMENTS] Department deleted: ${department.name} (ID: ${id})`);
+
+        res.json({
+            success: true,
+            message: `Department "${department.name}" has been deleted successfully`,
+            department: {
+                id: department._id,
+                name: department.name
+            }
+        });
+    } catch (error) {
+        console.error('Failed to delete department:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete department',
+            error: error.message
         });
     }
 });

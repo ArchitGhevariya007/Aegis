@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { authAPI, storage } from "../services/api";
 
 import SecurityAlertsPanel from "./AdminDashboard/SecurityAlertsPanel";
@@ -9,6 +10,8 @@ import LocationMapPanel from "./AdminDashboard/LocationMapPanel";
 import InsiderMonitorPanel from "./AdminDashboard/InsiderMonitorPanel";
 import EmergencySummary from "./AdminDashboard/EmergencySummary";
 import VotingPanel from "./AdminDashboard/VotingPanel";
+import ManageDepartments from "./AdminDashboard/ManageDepartments";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 
 // Example icon for Admin
@@ -25,6 +28,7 @@ const AdminIcon = ({ className = "w-4 h-4" }) => (
 );
 
 export default function AdminDashboard() {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("overview");
     const navigate = useNavigate();
 
@@ -44,12 +48,13 @@ export default function AdminDashboard() {
     };
 
     const tabs = [
-        { key: "overview", label: "Overview" },
-        { key: "location", label: "Location Map" },
-        { key: "alerts", label: "Security Alerts" },
-        { key: "roles", label: "Manage Roles" },
-        { key: "emergency", label: "Emergency" },
-        { key: "voting", label: "Voting System" },
+        { key: "overview", label: t('adminDashboard.overview') },
+        { key: "location", label: t('adminDashboard.locationMap') },
+        { key: "alerts", label: t('adminDashboard.securityAlerts') },
+        { key: "roles", label: t('adminDashboard.manageRoles') },
+        { key: "departments", label: t('adminDashboard.manageDepartments') },
+        { key: "emergency", label: t('adminDashboard.emergency') },
+        { key: "voting", label: t('adminDashboard.votingSystem') },
         // { key: "insider", label: "Insider Monitor" },
     ];
 
@@ -76,13 +81,14 @@ export default function AdminDashboard() {
 
                     <div className="flex items-center gap-2 lg:gap-3">
                         <span className="hidden sm:block text-xs lg:text-sm text-slate-500">
-                            Role: <span className="font-medium text-slate-700">Administrator</span>
+                            {t('navbar.role')}: <span className="font-medium text-slate-700">{t('navbar.administrator')}</span>
                         </span>
+                        <LanguageSwitcher />
                         <button
                             onClick={handleLogout}
                             className="px-2 lg:px-3 py-1 text-xs lg:text-sm text-slate-700 border rounded-full hover:bg-slate-100"
                         >
-                            Logout
+                            {t('navbar.logout')}
                         </button>
                     </div>
                 </div>
@@ -92,10 +98,10 @@ export default function AdminDashboard() {
             <div className="max-w-7xl mx-auto py-6 lg:py-10 px-4 lg:px-6">
                 <div className="mb-6 lg:mb-8">
                     <h1 className="text-xl lg:text-2xl xl:text-3xl font-semibold mb-2">
-                        Administrative Dashboard
+                        {t('adminDashboard.title')}
                     </h1>
                     <p className="text-slate-600 text-sm lg:text-base">
-                        Monitor system security and manage digital identity infrastructure
+                        {t('adminDashboard.subtitle')}
                     </p>
                 </div>
 
@@ -155,6 +161,7 @@ export default function AdminDashboard() {
                 {/* Placeholders for other sections */}
                 {activeTab === "alerts" && <SecurityAlertsPanel />}
                 {activeTab === "roles" && <RoleViewsPanel />}
+                {activeTab === "departments" && <ManageDepartments />}
                 {activeTab === "emergency" && <EmergencyPanel />}
                 {activeTab === "location" && <LocationMapPanel />}
                 {activeTab === "voting" && <VotingPanel />}

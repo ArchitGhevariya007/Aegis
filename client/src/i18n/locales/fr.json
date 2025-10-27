@@ -1,0 +1,83 @@
+{
+  "navbar": {
+    "dashboard": "Tableau de Bord",
+    "voting": "Scrutin",
+    "logout": "Déconnexion",
+    "role": "Rôle",
+    "user": "Utilisateur",
+    "admin": "Administrateur",
+    "administrator": "Administrateur",
+    "language": "Langue"
+  },
+  "dashboard": {
+    "title": "Tableau de Bord Utilisateur",
+    "subtitle": "Gérez votre identité numérique et vos permissions d'accès",
+    "overview": "Aperçu",
+    "blockchainId": "ID Blockchain",
+    "documents": "Documents",
+    "accessLogs": "Journaux d'Accès",
+    "notifications": "Notifications"
+  },
+  "adminDashboard": {
+    "title": "Tableau de Bord Administratif",
+    "subtitle": "Surveiller la sécurité du système et gérer l'infrastructure d'identité numérique",
+    "overview": "Aperçu",
+    "locationMap": "Carte de Localisation",
+    "securityAlerts": "Alertes de Sécurité",
+    "manageRoles": "Gérer les Rôles",
+    "manageDepartments": "Gérer les Départements",
+    "emergency": "Urgence",
+    "votingSystem": "Système de Vote"
+  },
+  "documents": {
+    "title": "Gestionnaire de Documents",
+    "uploadTitle": "Télécharger des documents supplémentaires",
+    "chooseFile": "Choisir un Fichier",
+    "uploadedDocuments": "Documents Téléchargés",
+    "noDocuments": "Aucun document téléchargé",
+    "verified": "Vérifié",
+    "view": "Afficher",
+    "download": "Télécharger",
+    "decryptDownload": "Décrypter et Télécharger",
+    "delete": "Supprimer",
+    "verify": "Vérifier",
+    "uploaded": "Téléchargé",
+    "blockchain": "Blockchain",
+    "encrypted": "Chiffré",
+    "verificationStatus": "État de Vérification",
+    "documentAuthenticity": "Authenticité du Document",
+    "faceMatch": "Correspondance Faciale",
+    "livenessCheck": "Vérification de Vivacité"
+  },
+  "voting": {
+    "title": "Système de Vote",
+    "startVoting": "Commencer le Vote",
+    "stopVoting": "Arrêter le Vote",
+    "castVote": "Voter",
+    "results": "Résultats",
+    "noVoting": "Aucun scrutin actif. Vous pourrez voter quand ce sera disponible",
+    "selectParty": "Sélectionnez un parti",
+    "verifyFace": "Vérifiez Votre Visage",
+    "captureLive": "Capturer le Visage en Direct",
+    "startCamera": "Démarrer la Caméra",
+    "captureSnapshot": "Capturer une Image",
+    "votes": "Votes",
+    "percentage": "Pourcentage",
+    "totalVotes": "Total des Votes",
+    "voters": "Votants"
+  },
+  "common": {
+    "success": "Succès",
+    "error": "Erreur",
+    "loading": "Chargement",
+    "confirm": "Confirmer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "close": "Fermer",
+    "save": "Enregistrer",
+    "submit": "Soumettre",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent"
+  }
+}

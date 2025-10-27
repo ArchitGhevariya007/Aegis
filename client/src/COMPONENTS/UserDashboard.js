@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import ProfileInformation from "./UserDashboard/ProfileInformation";
 import BlockchainDigitalID from "./UserDashboard/BlockchainDigitalID";
 import DocumentManager from "./UserDashboard/DocumentManager";
 import AccessLogViewer from "./UserDashboard/AccessLogViewer";
 import NotificationCenter from "./UserDashboard/NotificationCenter";
 import VotingSection from "./UserDashboard/VotingSection";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 // Icon Components
 const UserIcon = ({ className = "w-4 h-4" }) => (
@@ -21,6 +23,7 @@ const VotingIcon = ({ className = "w-4 h-4" }) => (
 );
 
 export default function UserDashboard() {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("overview");
     const [activeSection, setActiveSection] = useState("dashboard");
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -34,11 +37,11 @@ export default function UserDashboard() {
     };
 
     const tabs = [
-        { key: "overview", label: "Overview" },
-        { key: "blockchain", label: "Blockchain ID" },
-        { key: "documents", label: "Documents" },
-        { key: "accessLogs", label: "Access Logs" },
-        { key: "notifications", label: "Notifications" }
+        { key: "overview", label: t('dashboard.overview') },
+        { key: "blockchain", label: t('dashboard.blockchainId') },
+        { key: "documents", label: t('dashboard.documents') },
+        { key: "accessLogs", label: t('dashboard.accessLogs') },
+        { key: "notifications", label: t('dashboard.notifications') }
     ];
 
     return (
@@ -60,7 +63,7 @@ export default function UserDashboard() {
                                 }`}
                             >
                                 <UserIcon className="w-3 h-3 lg:w-4 lg:h-4" />
-                                Dashboard
+                                {t('navbar.dashboard')}
                             </button>
                             <button
                                 onClick={() => setActiveSection("voting")}
@@ -71,7 +74,7 @@ export default function UserDashboard() {
                                 }`}
                             >
                                 <VotingIcon className="w-3 h-3 lg:w-4 lg:h-4" />
-                                Voting
+                                {t('navbar.voting')}
                             </button>
                         </div>
 
@@ -88,13 +91,14 @@ export default function UserDashboard() {
 
                     <div className="flex items-center gap-2 lg:gap-3">
                         <span className="hidden sm:block text-xs lg:text-sm text-slate-500">
-                            Role: <span className="font-medium text-slate-700">User</span>
+                            {t('navbar.role')}: <span className="font-medium text-slate-700">{t('navbar.user')}</span>
                         </span>
+                        <LanguageSwitcher />
                         <button
                             onClick={handleLogout}
                             className="px-2 lg:px-3 py-1 text-xs lg:text-sm text-slate-700 border rounded-full hover:bg-slate-100"
                         >
-                            Logout
+                            {t('navbar.logout')}
                         </button>
                     </div>
                 </div>
@@ -115,7 +119,7 @@ export default function UserDashboard() {
                                 }`}
                             >
                                 <UserIcon className="w-4 h-4" />
-                                Dashboard
+                                {t('navbar.dashboard')}
                             </button>
                             <button
                                 onClick={() => {
@@ -129,7 +133,7 @@ export default function UserDashboard() {
                                 }`}
                             >
                                 <VotingIcon className="w-4 h-4" />
-                                Voting
+                                {t('navbar.voting')}
                             </button>
                         </div>
                     </div>
@@ -139,9 +143,9 @@ export default function UserDashboard() {
             {/* Dashboard Content */}
             <div className="max-w-7xl mx-auto py-6 lg:py-10 px-4 lg:px-6">
                 <div className="mb-6 lg:mb-8">
-                    <h1 className="text-xl lg:text-2xl xl:text-3xl font-semibold mb-2">User Dashboard</h1>
+                    <h1 className="text-xl lg:text-2xl xl:text-3xl font-semibold mb-2">{t('dashboard.title')}</h1>
                     <p className="text-slate-600 text-sm lg:text-base">
-                        Manage your digital identity and access permissions
+                        {t('dashboard.subtitle')}
                     </p>
                 </div>
 

@@ -1,0 +1,83 @@
+{
+  "navbar": {
+    "dashboard": "Dashboard",
+    "voting": "Voting",
+    "logout": "Logout",
+    "role": "Role",
+    "user": "User",
+    "admin": "Admin",
+    "administrator": "Administrator",
+    "language": "Language"
+  },
+  "dashboard": {
+    "title": "User Dashboard",
+    "subtitle": "Manage your digital identity and access permissions",
+    "overview": "Overview",
+    "blockchainId": "Blockchain ID",
+    "documents": "Documents",
+    "accessLogs": "Access Logs",
+    "notifications": "Notifications"
+  },
+  "adminDashboard": {
+    "title": "Administrative Dashboard",
+    "subtitle": "Monitor system security and manage digital identity infrastructure",
+    "overview": "Overview",
+    "locationMap": "Location Map",
+    "securityAlerts": "Security Alerts",
+    "manageRoles": "Manage Roles",
+    "manageDepartments": "Manage Departments",
+    "emergency": "Emergency",
+    "votingSystem": "Voting System"
+  },
+  "documents": {
+    "title": "Document Manager",
+    "uploadTitle": "Upload additional documents",
+    "chooseFile": "Choose File",
+    "uploadedDocuments": "Uploaded Documents",
+    "noDocuments": "No documents uploaded yet",
+    "verified": "Verified",
+    "view": "View",
+    "download": "Download",
+    "decryptDownload": "Decrypt & Download",
+    "delete": "Delete",
+    "verify": "Verify",
+    "uploaded": "Uploaded",
+    "blockchain": "Blockchain",
+    "encrypted": "Encrypted",
+    "verificationStatus": "Verification Status",
+    "documentAuthenticity": "Document Authenticity",
+    "faceMatch": "Face Match",
+    "livenessCheck": "Liveness Check"
+  },
+  "voting": {
+    "title": "Voting System",
+    "startVoting": "Start Voting",
+    "stopVoting": "Stop Voting",
+    "castVote": "Cast Vote",
+    "results": "Results",
+    "noVoting": "No active voting is going on. You can submit vote when it's available",
+    "selectParty": "Select a party",
+    "verifyFace": "Verify Your Face",
+    "captureLive": "Capture Live Face",
+    "startCamera": "Start Camera",
+    "captureSnapshot": "Capture Snapshot",
+    "votes": "Votes",
+    "percentage": "Percentage",
+    "totalVotes": "Total Votes",
+    "voters": "Voters"
+  },
+  "common": {
+    "success": "Success",
+    "error": "Error",
+    "loading": "Loading",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "close": "Close",
+    "save": "Save",
+    "submit": "Submit",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous"
+  }
+}
