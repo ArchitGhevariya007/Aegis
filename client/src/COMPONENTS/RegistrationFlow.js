@@ -157,13 +157,10 @@ export default function RegistrationFlow() {
   }, [user]);
 
   const canNextFromStep3 = useMemo(() => {
-    return !!docBase64 && 
-           !!ocrEditable.documentType.trim() && 
-           !!ocrEditable.name.trim() && 
-           !!ocrEditable.dob.trim() && 
-           !!ocrEditable.idNumber.trim() && 
-           !!ocrEditable.address.trim();
-  }, [docBase64, ocrEditable]);
+    // Only require document image to be uploaded
+    // User can fill or leave empty the OCR fields - will send whatever they provide
+    return !!docBase64;
+  }, [docBase64]);
   const canNextFromStep4 = useMemo(
     () => (!!user.faceData.liveFaceImage || !usingCamera) && !processing, // allow demo skip but block during processing
     [user.faceData.liveFaceImage, usingCamera, processing]
