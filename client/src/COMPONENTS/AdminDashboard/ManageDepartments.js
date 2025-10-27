@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Plus, Copy, ChevronLeft, ChevronRight, RotateCw, Trash2 } from 'lucide-react';
+import { Shield, Plus, Copy, ChevronLeft, ChevronRight, RotateCw, Trash2, AlertCircle } from 'lucide-react';
 import { departmentAPI, storage } from '../../services/api';
 import { SuccessModal } from '../common/Modal';
 
@@ -41,20 +41,21 @@ export default function ManageDepartments() {
       
       if (response.success) {
         setDepartments(response.departments);
-        console.log('Fetched departments:', response.departments);
-        response.departments.forEach(dept => {
-          console.log(`Department: ${dept.name}, plainPassword: ${dept.plainPassword}, password: ${dept.password}`);
-        });
+        // console.log('Fetched departments:', response.departments);
+        // response.departments.forEach(dept => {
+        //   console.log(`Department: ${dept.name}, plainPassword: ${dept.plainPassword}, password: ${dept.password}`);
+        // });
         // Initialize password visibility state
         const visibility = {};
         response.departments.forEach(dept => {
           visibility[dept._id] = false;
         });
-        console.log('Initialized password visibility:', visibility);
+        // console.log('Initialized password visibility:', visibility);
         setCurrentPage(1);
       }
     } catch (error) {
-      console.error('Failed to fetch departments:', error);
+      // console.error('Failed to fetch departments:', error);
+      setDepartments([]);
     } finally {
       setLoading(false);
     }
@@ -126,7 +127,7 @@ export default function ManageDepartments() {
         setFormErrors({ submit: response.message || 'Failed to create department' });
       }
     } catch (error) {
-      console.error('Error creating department:', error);
+      // console.error('Error creating department:', error);
       setFormErrors({ submit: 'An error occurred while creating the department' });
     } finally {
       setSaving(false);
@@ -148,7 +149,7 @@ export default function ManageDepartments() {
         setTimeout(() => fetchDepartments(), 500);
       }
     } catch (error) {
-      console.error('Error resetting password:', error);
+      // console.error('Error resetting password:', error);
       alert('Failed to reset password. Please try again.');
     } finally {
       setResetting(null);
@@ -173,7 +174,7 @@ export default function ManageDepartments() {
         alert(response.message || 'Failed to delete department');
       }
     } catch (error) {
-      console.error('Error deleting department:', error);
+      // console.error('Error deleting department:', error);
       alert('An error occurred while deleting the department');
     } finally {
       setDeleting(false);
@@ -545,7 +546,9 @@ export default function ManageDepartments() {
             </p>
 
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-xs text-amber-700 mb-3 font-semibold">⚠️ IMPORTANT:</p>
+              <p className="text-xs text-amber-700 mb-3 font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" /> IMPORTANT:
+              </p>
               <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
                 <li>Copy this password now - it won't be shown again</li>
                 <li>Store it securely in your password manager</li>
@@ -594,7 +597,9 @@ export default function ManageDepartments() {
       {showDeleteConfirm && departmentToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-red-600 mb-2">⚠️ Delete Department</h3>
+            <h3 className="text-xl font-bold text-red-600 mb-2 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" /> Delete Department
+            </h3>
             <p className="text-sm text-slate-600 mb-4">
               Are you sure you want to delete <span className="font-semibold text-slate-900">"{departmentToDelete.name}"</span>?
             </p>

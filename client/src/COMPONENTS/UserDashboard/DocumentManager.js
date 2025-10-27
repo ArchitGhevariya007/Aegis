@@ -156,7 +156,8 @@ export default function DocumentManager() {
                 setDocuments(data.documents || []);
             }
         } catch (error) {
-            console.error('Error fetching documents:', error);
+            // console.error('Error fetching documents:', error);
+            setDocuments([]);
         }
     };
 
@@ -264,7 +265,7 @@ export default function DocumentManager() {
     const downloadDocument = async (documentId, fileName) => {
         try {
             const token = localStorage.getItem('authToken');
-            console.log(`📥 Downloading document: ${fileName}`);
+            // console.log(`📥 Downloading document: ${fileName}`);
             
             // Show loading modal for blockchain documents
             const doc = documents.find(d => d._id === documentId);
@@ -292,7 +293,7 @@ export default function DocumentManager() {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
-                console.log(`✅ Download completed: ${fileName}`);
+                // console.log(`✅ Download completed: ${fileName}`);
                 
                 if (isBlockchain) {
                     setShowLoadingModal(false);
@@ -302,14 +303,14 @@ export default function DocumentManager() {
                 }
             } else {
                 const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-                console.error('Download failed:', errorData.message);
+                // console.error('Download failed:', errorData.message);
                 setShowLoadingModal(false);
                 setModalType('download');
                 setSuccessMessage(`Failed to download document: ${errorData.message}`);
                 setShowSuccessModal(true);
             }
         } catch (error) {
-            console.error('Error downloading document:', error);
+            // console.error('Error downloading document:', error);
             setShowLoadingModal(false);
             setModalType('download');
             setSuccessMessage(`Download failed: ${error.message}`);

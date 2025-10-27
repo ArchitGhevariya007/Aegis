@@ -191,13 +191,13 @@ const initializeDepartments = async () => {
                     permissions: data.permissions
                 });
                 await dept.save();
-                console.log(`[DEPARTMENTS] Created ${name}`);
+                // console.log(`[DEPARTMENTS] Created ${name}`);
             } else {
-                console.log(`[DEPARTMENTS] ${name} already exists`);
+                // console.log(`[DEPARTMENTS] ${name} already exists`);
             }
         }
 
-        console.log('[DEPARTMENTS] Default departments initialized');
+        // console.log('[DEPARTMENTS] Default departments initialized');
     } catch (error) {
         console.error('[DEPARTMENTS] Initialization error:', error);
     }

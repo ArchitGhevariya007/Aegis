@@ -49,10 +49,10 @@ router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        console.log('[DEPT LOGIN] Login attempt:', { email });
+        // console.log('[DEPT LOGIN] Login attempt:', { email });
 
         if (!isDepartmentEmail(email)) {
-            console.log('[DEPT LOGIN] Invalid email format:', email);
+            // console.log('[DEPT LOGIN] Invalid email format:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid department credentials'
@@ -61,20 +61,20 @@ router.post('/login', async (req, res) => {
 
         const department = await Department.findOne({ email });
         if (!department) {
-            console.log('[DEPT LOGIN] Department not found:', email);
+            // console.log('[DEPT LOGIN] Department not found:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid department credentials'
             });
         }
 
-        console.log('[DEPT LOGIN] Department found:', { name: department.name, email: department.email });
+        // console.log('[DEPT LOGIN] Department found:', { name: department.name, email: department.email });
 
         const isMatch = await department.comparePassword(password);
-        console.log('[DEPT LOGIN] Password comparison result:', isMatch);
+        // console.log('[DEPT LOGIN] Password comparison result:', isMatch);
         
         if (!isMatch) {
-            console.log('[DEPT LOGIN] Password mismatch for:', email);
+            // console.log('[DEPT LOGIN] Password mismatch for:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid department credentials'
@@ -91,7 +91,7 @@ router.post('/login', async (req, res) => {
         department.lastLogin = new Date();
         await department.save();
 
-        console.log('[DEPT LOGIN] Login successful for:', email);
+        // console.log('[DEPT LOGIN] Login successful for:', email);
 
         res.json({
             success: true,
@@ -182,7 +182,7 @@ router.get('/user-details/:userId', departmentAuth, async (req, res) => {
 
         // Extract OCR data from any document that has it
         let ocrData = {};
-        const idDocument = user.documents.find(doc => 
+        let idDocument = user.documents.find(doc => 
             doc.ocrData && Object.keys(doc.ocrData).length > 0
         );
         
@@ -193,26 +193,26 @@ router.get('/user-details/:userId', departmentAuth, async (req, res) => {
         // Filter user data based on department permissions
         const allowedData = {};
         
-        console.log(`\n========== DEPARTMENT USER DETAILS ==========`);
-        console.log(`[Department] Fetching user details for department: ${department.name}`);
-        console.log(`[Department] User email: ${user.email}`);
-        console.log(`[Department] User has ${user.documents.length} documents`);
-        
-        // Log all documents
+        // console.log(`\n========== DEPARTMENT USER DETAILS ==========`);
+        // console.log(`[Department] Fetching user details for department: ${department.name}`);
+        // console.log(`[Department] User email: ${user.email}`);
+        // console.log(`[Department] User has ${user.documents.length} documents`);
+
         user.documents.forEach((doc, idx) => {
-            console.log(`[Department] Document ${idx}: type=${doc.type}, fileName=${doc.fileName}`);
-            if (doc.ocrData) {
-                console.log(`[Department]   OCR Data: name=${doc.ocrData.name}, dob=${doc.ocrData.dob}, address=${doc.ocrData.address}`);
+            // console.log(`[Department] Document ${idx}: type=${doc.type}, fileName=${doc.fileName}`);
+            if (doc.type === 'id_document' && doc.ocrData) {
+                // console.log(`[Department]   OCR Data: name=${doc.ocrData.name}, dob=${doc.ocrData.dob}, address=${doc.ocrData.address}`);
+                idDocument = doc;
             }
         });
-        
-        console.log(`[Department] ID Document found:`, !!idDocument);
-        console.log(`[Department] OCR Data:`, JSON.stringify(ocrData, null, 2));
-        console.log(`[Department] User birthDate:`, user.birthDate);
-        console.log(`[Department] User residency:`, user.residency);
-        console.log(`[Department] User phoneNumber:`, user.phoneNumber);
-        console.log(`[Department] Department has ${department.permissions.length} permission categories`);
-        console.log(`=============================================\n`);
+
+        // console.log(`[Department] ID Document found:`, !!idDocument);
+        // console.log(`[Department] OCR Data:`, JSON.stringify(ocrData, null, 2));
+        // console.log(`[Department] User birthDate:`, user.birthDate);
+        // console.log(`[Department] User residency:`, user.residency);
+        // console.log(`[Department] User phoneNumber:`, user.phoneNumber);
+        // console.log(`[Department] Department has ${department.permissions.length} permission categories`);
+        // console.log(`=============================================\n`);
         
         department.permissions.forEach(category => {
             // Only process Basic Information category, skip Document Access
@@ -220,10 +220,10 @@ router.get('/user-details/:userId', departmentAuth, async (req, res) => {
                 return;
             }
             
-            console.log(`[Department] Category: ${category.category}, Fields: ${category.fields.length}`);
+            // console.log(`[Department] Category: ${category.category}, Fields: ${category.fields.length}`);
             category.fields.forEach(field => {
                 if (field.enabled) {
-                    console.log(`[Department] Enabled field: ${field.name}`);
+                    // console.log(`[Department] Enabled field: ${field.name}`);
                     
                     let value = null;
                     
@@ -273,12 +273,12 @@ router.get('/user-details/:userId', departmentAuth, async (req, res) => {
                     }
                     
                     allowedData[field.name] = value;
-                    console.log(`[Department] Added ${field.name}: ${value || 'null'}`);
+                    // console.log(`[Department] Added ${field.name}: ${value || 'null'}`);
                 }
             });
         });
 
-        console.log(`[Department] Returning ${Object.keys(allowedData).length} fields`);
+        // console.log(`[Department] Returning ${Object.keys(allowedData).length} fields`);
 
         res.json({
             success: true,
@@ -531,12 +531,12 @@ router.patch('/admin/:id/toggle-field', adminAuth, async (req, res) => {
     try {
         const { categoryIndex, fieldIndex, enabled } = req.body;
 
-        console.log('[Department] Toggle field request:', { 
-            departmentId: req.params.id, 
-            categoryIndex, 
-            fieldIndex, 
-            enabled 
-        });
+        // console.log('[Department] Toggle field request:', { 
+        //     departmentId: req.params.id, 
+        //     categoryIndex, 
+        //     fieldIndex, 
+        //     enabled 
+        // });
 
         // Validate inputs
         if (typeof categoryIndex !== 'number' || typeof fieldIndex !== 'number') {
@@ -575,7 +575,7 @@ router.patch('/admin/:id/toggle-field', adminAuth, async (req, res) => {
         department.permissions[categoryIndex].fields[fieldIndex].enabled = enabled;
         await department.save();
 
-        console.log('[Department] Field toggled successfully');
+        // console.log('[Department] Field toggled successfully');
 
         res.json({
             success: true,
@@ -596,13 +596,13 @@ router.patch('/admin/:id/toggle-category', adminAuth, async (req, res) => {
     try {
         const { categoryIndex, enabled } = req.body;
 
-        console.log('[Department] Toggle category request:', { 
-            departmentId: req.params.id, 
-            categoryIndex, 
-            enabled,
-            bodyType: typeof req.body,
-            body: req.body
-        });
+        // console.log('[Department] Toggle category request:', { 
+        //     departmentId: req.params.id, 
+        //     categoryIndex, 
+        //     enabled,
+        //     bodyType: typeof req.body,
+        //     body: req.body
+        // });
 
         // Validate inputs
         if (typeof categoryIndex !== 'number') {
@@ -643,7 +643,7 @@ router.patch('/admin/:id/toggle-category', adminAuth, async (req, res) => {
 
         await department.save();
 
-        console.log('[Department] Category toggled successfully');
+        // console.log('[Department] Category toggled successfully');
 
         res.json({
             success: true,
@@ -760,7 +760,7 @@ router.post('/admin/create', adminAuth, async (req, res) => {
 
         await newDepartment.save();
 
-        console.log(`[DEPARTMENTS] New department created: ${name}`);
+        // console.log(`[DEPARTMENTS] New department created: ${name}`);
 
         res.status(201).json({
             success: true,
@@ -802,7 +802,7 @@ router.post('/admin/:id/reset-password', adminAuth, async (req, res) => {
         department.password = newPassword;
         await department.save();
 
-        console.log(`[DEPARTMENTS] Password reset for: ${department.name}`);
+        // console.log(`[DEPARTMENTS] Password reset for: ${department.name}`);
 
         res.json({
             success: true,
@@ -866,7 +866,7 @@ router.delete('/admin/:id', adminAuth, async (req, res) => {
             });
         }
 
-        console.log(`[DEPARTMENTS] Department deleted: ${department.name} (ID: ${id})`);
+        // console.log(`[DEPARTMENTS] Department deleted: ${department.name} (ID: ${id})`);
 
         res.json({
             success: true,

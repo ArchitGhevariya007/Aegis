@@ -30,20 +30,21 @@ class BlockchainService {
             try {
                 this.contract = new ethers.Contract(this.contractAddress, this.contractABI, this.wallet);
             } catch (error) {
-                console.warn('⚠️  Smart contract not available, using IPFS-only mode');
-                this.contract = null;
+                // console.warn('⚠️  Smart contract not available, using IPFS-only mode');
+                console.warn('Smart contract not available, using IPFS-only mode');
             }
         }
         
-        console.log('Blockchain service initialized with wallet:', this.wallet.address);
+        // console.log('Blockchain service initialized with wallet:', this.wallet.address);
     }
     
     // Generate a test wallet for development (DO NOT use in production)
     generateTestWallet() {
         const wallet = ethers.Wallet.createRandom();
-        console.warn('⚠️  Generated test wallet. Set BLOCKCHAIN_PRIVATE_KEY in production!');
-        console.log('Test wallet address:', wallet.address);
-        console.log('Test wallet private key:', wallet.privateKey);
+        // console.warn('⚠️  Generated test wallet. Set BLOCKCHAIN_PRIVATE_KEY in production!');
+        // console.log('Test wallet address:', wallet.address);
+        // console.log('Test wallet private key:', wallet.privateKey);
+        console.warn('Generated test wallet. Set BLOCKCHAIN_PRIVATE_KEY in production!');
         return wallet.privateKey;
     }
     
@@ -136,28 +137,28 @@ class BlockchainService {
     
     // Decrypt document (now with consistent encryption/decryption)
     decryptDocument(encryptedBuffer, encryptionKey, userAddress, iv) {
-        console.log(`🔓 Decrypting document...`);
-        console.log(`   Encrypted size: ${encryptedBuffer.length} bytes`);
-        console.log(`   Stored key: ${encryptionKey.substring(0, 16)}...`);
-        console.log(`   IV: ${iv}`);
-        console.log(`   User: ${userAddress}`);
+        // console.log(`🔓 Decrypting document...`);
+        // console.log(`   Encrypted size: ${encryptedBuffer.length} bytes`);
+        // console.log(`   Stored key: ${encryptionKey.substring(0, 16)}...`);
+        // console.log(`   IV: ${iv}`);
+        // console.log(`   User: ${userAddress}`);
         
         // Method 1: Use stored key directly (new consistent method)
         try {
-            console.log(`   🔑 Using stored composite key (new method)`);
+            // console.log(`   🔑 Using stored composite key (new method)`);
             const keyBuffer = Buffer.from(encryptionKey, 'hex');
             const ivBuffer = Buffer.from(iv, 'hex');
             const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, ivBuffer);
             let decrypted = decipher.update(encryptedBuffer);
             decrypted = Buffer.concat([decrypted, decipher.final()]);
             
-            console.log(`✅ Decryption successful: ${decrypted.length} bytes`);
+            // console.log(`✅ Decryption successful: ${decrypted.length} bytes`);
             return decrypted;
         } catch (directError) {
-            console.log(`   ❌ Direct method failed: ${directError.message}`);
+            // console.log(`   ❌ Direct method failed: ${directError.message}`);
             
             // Method 2: Legacy support - try to reverse-engineer original key
-            console.log(`   🔑 Trying legacy key reconstruction...`);
+            // console.log(`   🔑 Trying legacy key reconstruction...`);
             
             // For old documents, we need to find the raw key that was used for encryption
             // but the composite key was stored. This is tricky without the original raw key.
@@ -166,7 +167,7 @@ class BlockchainService {
             const legacyMethods = [
                 // Method 1: Try stored key as raw encryption key (most likely for old docs)
                 () => {
-                    console.log(`     Legacy method 1: Stored key as raw encryption key`);
+                    // console.log(`     Legacy method 1: Stored key as raw encryption key`);
                     const keyBuffer = Buffer.from(encryptionKey, 'hex');
                     const ivBuffer = Buffer.from(iv, 'hex');
                     const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, ivBuffer);
@@ -176,7 +177,7 @@ class BlockchainService {
                 
                 // Method 2: Try to reconstruct original raw key (reverse hash - impossible but try patterns)
                 () => {
-                    console.log(`     Legacy method 2: Pattern-based key derivation`);
+                    // console.log(`     Legacy method 2: Pattern-based key derivation`);
                     // Try deriving potential raw keys from the composite
                     const potentialKeys = [
                         // Use first 32 bytes of stored key
@@ -206,7 +207,7 @@ class BlockchainService {
                 
                 // Method 3: Try different user address formats
                 () => {
-                    console.log(`     Legacy method 3: Alternative user formats`);
+                    // console.log(`     Legacy method 3: Alternative user formats`);
                     const userVariants = [
                         userAddress.toLowerCase(),
                         userAddress.toUpperCase(),
@@ -234,10 +235,10 @@ class BlockchainService {
             for (let i = 0; i < legacyMethods.length; i++) {
                 try {
                     const result = legacyMethods[i]();
-                    console.log(`✅ Legacy decryption successful with method ${i + 1}: ${result.length} bytes`);
+                    // console.log(`✅ Legacy decryption successful with method ${i + 1}: ${result.length} bytes`);
                     return result;
                 } catch (error) {
-                    console.log(`     ❌ Legacy method ${i + 1} failed: ${error.message}`);
+                    // console.log(`     ❌ Legacy method ${i + 1} failed: ${error.message}`);
                 }
             }
             
@@ -320,7 +321,7 @@ class BlockchainService {
         try {
             if (!this.contract) {
                 // Fallback: Create a simple transaction to record the document hash
-                console.log('📝 No smart contract - creating simple verification transaction');
+                // console.log('📝 No smart contract - creating simple verification transaction');
                 
                 const nonce = await this.provider.getTransactionCount(this.wallet.address);
                 const transaction = {
@@ -346,8 +347,8 @@ class BlockchainService {
             
             // Smart contract mode - convert user identifier to address format
             const blockchainAddress = this.convertUserToAddress(userAddress);
-            console.log(`📄 Using smart contract for document storage`);
-            console.log(`   User: ${userAddress} → Address: ${blockchainAddress}`);
+            // console.log(`📄 Using smart contract for document storage`);
+            // console.log(`   User: ${userAddress} → Address: ${blockchainAddress}`);
             
             const gasEstimate = await this.contract.storeDocument.estimateGas(
                 documentHash,
@@ -371,7 +372,7 @@ class BlockchainService {
             const event = receipt.logs?.find(log => log.fragment?.name === 'DocumentStored');
             const documentId = event?.args?.documentId;
             
-            console.log(`✅ Document stored on blockchain via smart contract: ${receipt.hash}`);
+            // console.log(`✅ Document stored on blockchain via smart contract: ${receipt.hash}`);
             
             return {
                 transactionHash: receipt.hash,
@@ -389,7 +390,7 @@ class BlockchainService {
     // Complete document storage process
     async storeDocument(fileBuffer, fileName, userAddress) {
         try {
-            console.log(`Starting blockchain storage for: ${fileName}`);
+            // console.log(`Starting blockchain storage for: ${fileName}`);
             
             // Step 1: Generate document hash
             const documentHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
@@ -428,19 +429,19 @@ class BlockchainService {
     // Retrieve and decrypt document from IPFS (simplified version without smart contract)
     async retrieveDocumentFromIPFS(ipfsHash, encryptionKey, encryptionIV, userAddress) {
         try {
-            console.log(`📥 Retrieving document from IPFS: ${ipfsHash}`);
+            // console.log(`📥 Retrieving document from IPFS: ${ipfsHash}`);
             
             // Download from IPFS
             const ipfsUrl = `${this.ipfsGateway}${ipfsHash}`;
             const response = await axios.get(ipfsUrl, { responseType: 'arraybuffer' });
             const encryptedBuffer = Buffer.from(response.data);
             
-            console.log(`✅ Downloaded ${encryptedBuffer.length} bytes from IPFS`);
+            // console.log(`✅ Downloaded ${encryptedBuffer.length} bytes from IPFS`);
             
             // Decrypt document
             const decryptedBuffer = this.decryptDocument(encryptedBuffer, encryptionKey, userAddress, encryptionIV);
             
-            console.log(`🔓 Decrypted to ${decryptedBuffer.length} bytes`);
+            // console.log(`🔓 Decrypted to ${decryptedBuffer.length} bytes`);
             
             return {
                 documentBuffer: decryptedBuffer,
@@ -609,7 +610,7 @@ class BlockchainService {
         
         // Fallback to simple transaction method
         try {
-            console.log('🗳️  Storing vote on blockchain (legacy mode)...');
+            // console.log('🗳️  Storing vote on blockchain (legacy mode)...');
             
             const voteHash = crypto.createHash('sha256')
                 .update(JSON.stringify({
@@ -637,7 +638,7 @@ class BlockchainService {
             const signedTx = await this.wallet.sendTransaction(transaction);
             const receipt = await signedTx.wait();
             
-            console.log(`✅ Vote stored on blockchain: ${receipt.hash}`);
+            // console.log(`✅ Vote stored on blockchain: ${receipt.hash}`);
             
             return {
                 transactionHash: receipt.hash,

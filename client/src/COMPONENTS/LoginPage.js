@@ -80,7 +80,7 @@ export default function LoginPage() {
       // Special handling for lockdown errors
       if (error.lockdown === true || error.message.includes('lockdown')) {
         setErrors({ 
-          general: "🔒 System Lockdown Active\n\nAll user logins are currently disabled. The system is under lockdown for security reasons.\n\nPlease contact your administrator for assistance." 
+          general: "System Lockdown Active\n\nAll user logins are currently disabled. The system is under lockdown for security reasons.\n\nPlease contact your administrator for assistance." 
         });
       } else {
         setErrors({ general: "Login failed: " + error.message });

@@ -5,7 +5,7 @@ const API_BASE_URL = 'http://localhost:5000/api';
 const apiCall = async (endpoint, options = {}) => {
   try {
     const fullUrl = `${API_BASE_URL}${endpoint}`;
-    console.log('Making API call to:', fullUrl, 'with method:', options.method || 'GET');
+    // console.log('Making API call to:', fullUrl, 'with method:', options.method || 'GET');
     
     const response = await fetch(fullUrl, {
       ...options,
@@ -15,7 +15,7 @@ const apiCall = async (endpoint, options = {}) => {
       },
     });
 
-    console.log('Response status:', response.status, response.statusText);
+    // console.log('Response status:', response.status, response.statusText);
 
     // Handle case where response is not JSON
     let data;
@@ -36,7 +36,7 @@ const apiCall = async (endpoint, options = {}) => {
 
     return data;
   } catch (error) {
-    console.error('API Error:', error.message);
+    // console.error('API Error:', error.message);
     throw error;
   }
 };
@@ -93,7 +93,7 @@ export const authAPI = {
         }
       } catch (deptError) {
         // Department login failed, try regular user login
-        console.log('[LOGIN] Department login failed, trying user login');
+        // console.log('[LOGIN] Department login failed, trying user login');
       }
 
       // Regular user login
@@ -102,7 +102,7 @@ export const authAPI = {
         body: JSON.stringify({ email, password }),
       });
     } catch (error) {
-      console.error('Login error:', error);
+      // console.error('Login error:', error);
       throw error;
     }
   },
@@ -204,8 +204,8 @@ export const emergencyAPI = {
   // Toggle system lockdown
   toggleLockdown: async (enabled, reason, token) => {
     const payload = { enabled, reason };
-    console.log('[API] Sending lockdown toggle:', payload);
-    console.log('[API] Stringified:', JSON.stringify(payload));
+    // console.log('[API] Sending lockdown toggle:', payload);
+    // console.log('[API] Stringified:', JSON.stringify(payload));
     
     return apiCall('/emergency/toggle-lockdown', {
       method: 'POST',
@@ -278,7 +278,7 @@ export const departmentAPI = {
 
   // Toggle specific permission field (admin)
   toggleField: async (id, categoryIndex, fieldIndex, enabled, token) => {
-    console.log('[API] Toggle field:', { id, categoryIndex, fieldIndex, enabled });
+    // console.log('[API] Toggle field:', { id, categoryIndex, fieldIndex, enabled });
     return apiCall(`/departments/admin/${id}/toggle-field`, {
       method: 'PATCH',
       headers: {
@@ -291,7 +291,7 @@ export const departmentAPI = {
 
   // Toggle entire category (admin)
   toggleCategory: async (id, categoryIndex, enabled, token) => {
-    console.log('[API] Toggle category:', { id, categoryIndex, enabled });
+    // console.log('[API] Toggle category:', { id, categoryIndex, enabled });
     return apiCall(`/departments/admin/${id}/toggle-category`, {
       method: 'PATCH',
       headers: {
@@ -361,14 +361,14 @@ export const votingAPI = {
   // Verify face for voting
   verifyFace: async (liveFaceImage) => {
     const token = storage.getToken();
-    console.log('[API] Calling verifyFace with:');
-    console.log('- Token:', token ? 'Present' : 'Missing');
-    console.log('- Image length:', liveFaceImage ? liveFaceImage.length : 0);
-    console.log('- Image type:', typeof liveFaceImage);
+    // console.log('[API] Calling verifyFace with:');
+    // console.log('- Token:', token ? 'Present' : 'Missing');
+    // console.log('- Image length:', liveFaceImage ? liveFaceImage.length : 0);
+    // console.log('- Image type:', typeof liveFaceImage);
     
     const bodyData = { liveFaceImage };
-    console.log('[API] Body data:', { hasImage: !!bodyData.liveFaceImage });
-    console.log('[API] Stringified body length:', JSON.stringify(bodyData).length);
+    // console.log('[API] Body data:', { hasImage: !!bodyData.liveFaceImage });
+    // console.log('[API] Stringified body length:', JSON.stringify(bodyData).length);
     
     return apiCall('/voting/verify-face', {
       method: 'POST',

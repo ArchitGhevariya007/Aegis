@@ -27,11 +27,10 @@ export default function EmergencyPanel() {
     try {
       const token = storage.getToken();
       const response = await emergencyAPI.getStatus(token);
-      // Use isLockdownActive from response (specifically for lockdown status)
       setIsLockdownActive(response.isLockdownActive || false);
-      console.log('[EmergencyPanel] Lockdown status:', response.isLockdownActive);
+      // console.log('[EmergencyPanel] Lockdown status:', response.isLockdownActive);
     } catch (error) {
-      console.error('Failed to fetch emergency status:', error);
+      // console.error('Failed to fetch emergency status:', error);
       setIsLockdownActive(false); // Default to false on error
     }
   };
@@ -60,8 +59,8 @@ export default function EmergencyPanel() {
       if (response.success) {
         setSuccessMessage(enable ? 'System Lockdown Activated' : 'System Lockdown Deactivated');
         setSuccessDetails(enable 
-          ? '🔒 All users have been logged out and the system is now in lockdown mode. User access is completely disabled.'
-          : '✅ Lockdown has been lifted. Normal system operations have resumed and users can now access the platform.');
+          ? 'All users have been logged out and the system is now in lockdown mode. User access is completely disabled.'
+          : 'Lockdown has been lifted. Normal system operations have resumed and users can now access the platform.');
         setShowSuccessModal(true);
         
         // Update state based on actual result
@@ -72,10 +71,10 @@ export default function EmergencyPanel() {
       await fetchEmergencyStatus();
     } catch (error) {
       // Show error in a modal instead of alert
-      setSuccessMessage('⚠️ Action Failed');
+      setSuccessMessage('Action Failed');
       setSuccessDetails(error.message || 'Failed to toggle system lockdown. Please try again.');
       setShowSuccessModal(true);
-      console.error('Lockdown toggle error:', error);
+      // console.error('Lockdown toggle error:', error);
     } finally {
       setLoading(false);
     }
@@ -117,7 +116,7 @@ export default function EmergencyPanel() {
       setShowSuccessModal(true);
     } catch (error) {
       alert(`Error: ${error.message || 'Failed to export data'}`);
-      console.error('Export error:', error);
+      // console.error('Export error:', error);
     } finally {
       setExporting(false);
     }
@@ -162,7 +161,7 @@ export default function EmergencyPanel() {
       setShowSuccessModal(true);
     } catch (error) {
       alert(`Error: ${error.message || 'Failed to generate system report'}`);
-      console.error('Report generation error:', error);
+      // console.error('Report generation error:', error);
     } finally {
       setGenerating(false);
     }

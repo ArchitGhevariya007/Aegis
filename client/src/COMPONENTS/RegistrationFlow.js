@@ -189,18 +189,18 @@ export default function RegistrationFlow() {
         audio: false
       };
 
-      console.log('Requesting camera with constraints:', constraints);
+      // console.log('Requesting camera with constraints:', constraints);
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       const videoTrack = stream.getVideoTracks()[0];
       const settings = videoTrack.getSettings();
       
-      console.log('Camera settings:', {
-        width: settings.width,
-        height: settings.height,
-        frameRate: settings.frameRate,
-        deviceId: settings.deviceId
-      });
+      // console.log('Camera settings:', {
+      //   width: settings.width,
+      //   height: settings.height,
+      //   frameRate: settings.frameRate,
+      //   deviceId: settings.deviceId
+      // });
 
       if (!videoRef.current) {
         throw new Error('Video element not found');
@@ -253,29 +253,29 @@ export default function RegistrationFlow() {
         throw new Error('Video dimensions not available');
       }
 
-      console.log('Video ready:', {
-        videoWidth: video.videoWidth,
-        videoHeight: video.videoHeight,
-        readyState: video.readyState,
-        playing: !video.paused
-      });
+      // console.log('Video ready:', {
+      //   videoWidth: video.videoWidth,
+      //   videoHeight: video.videoHeight,
+      //   readyState: video.readyState,
+      //   playing: !video.paused
+      // });
 
       setUsingCamera(true);
       
       // Wait additional time for stream to stabilize before allowing capture
-      console.log('Waiting for video stream to stabilize...');
+      // console.log('Waiting for video stream to stabilize...');
       await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second stabilization
       
       // Final check
       if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-        console.log('Camera fully ready for capture');
+        // console.log('Camera fully ready for capture');
         setCameraReady(true);
       } else {
         throw new Error('Camera not fully initialized');
       }
       
     } catch (e) {
-      console.error("Camera error:", e);
+      // console.error("Camera error:", e);
       setUsingCamera(false);
       setCameraReady(false);
       setModalType('camera_error');
@@ -325,15 +325,15 @@ export default function RegistrationFlow() {
     try {
       const v = videoRef.current;
       
-      console.log('Starting capture, video state:', {
-        videoWidth: v.videoWidth,
-        videoHeight: v.videoHeight,
-        readyState: v.readyState,
-        paused: v.paused,
-        ended: v.ended,
-        srcObject: !!v.srcObject,
-        cameraReady: cameraReady
-      });
+      // console.log('Starting capture, video state:', {
+      //   videoWidth: v.videoWidth,
+      //   videoHeight: v.videoHeight,
+      //   readyState: v.readyState,
+      //   paused: v.paused,
+      //   ended: v.ended,
+      //   srcObject: !!v.srcObject,
+      //   cameraReady: cameraReady
+      // });
       
       // Comprehensive video readiness check
       if (!v.srcObject) {
@@ -353,7 +353,7 @@ export default function RegistrationFlow() {
 
       // Check if video is actually playing
       if (v.paused || v.ended) {
-        console.log('Video not playing, attempting to restart...');
+        // console.log('Video not playing, attempting to restart...');
         try {
           await v.play();
           // Wait for video to actually start playing
@@ -364,7 +364,7 @@ export default function RegistrationFlow() {
             throw new Error('Failed to start video playback');
           }
         } catch (playError) {
-          console.error('Failed to restart video:', playError);
+          // console.error('Failed to restart video:', playError);
           // Reset camera state
           setCameraReady(false);
           setUsingCamera(false);
@@ -373,7 +373,7 @@ export default function RegistrationFlow() {
       }
       
       // Wait for multiple frames to ensure fresh capture
-      console.log('Waiting for fresh frames...');
+      // console.log('Waiting for fresh frames...');
       for (let i = 0; i < 3; i++) {
         await new Promise(requestAnimationFrame);
       }
@@ -402,13 +402,13 @@ export default function RegistrationFlow() {
       // Convert to high-quality JPEG
       const jpegData = c.toDataURL("image/jpeg", 0.95);
       
-      console.log('Captured frame dimensions:', {
-        videoWidth: v.videoWidth,
-        videoHeight: v.videoHeight,
-        canvasWidth: c.width,
-        canvasHeight: c.height,
-        dataLength: jpegData.length
-      });
+      // console.log('Captured frame dimensions:', {
+      //   videoWidth: v.videoWidth,
+      //   videoHeight: v.videoHeight,
+      //   canvasWidth: c.width,
+      //   canvasHeight: c.height,
+      //   dataLength: jpegData.length
+      // });
       
       // Validate image data
       if (jpegData.length < 1000) {
@@ -436,10 +436,10 @@ export default function RegistrationFlow() {
       }));
         
         // Don't show modal for successful capture, just proceed
-        console.log('Face captured successfully!');
+        // console.log('Face captured successfully!');
         
       } catch (faceError) {
-        console.error('Face detection error:', faceError);
+        // console.error('Face detection error:', faceError);
         setModalType('error');
         setModalMessage(
           faceError.message === 'No faces detected in image' ?
@@ -452,7 +452,7 @@ export default function RegistrationFlow() {
         throw faceError; // Re-throw to prevent proceeding
       }
     } catch (error) {
-      console.error('Error capturing face:', error);
+      // console.error('Error capturing face:', error);
       setModalType('error');
       setModalMessage(error.message || 'Failed to capture face. Please try again.');
       setShowModal(true);
@@ -488,7 +488,7 @@ export default function RegistrationFlow() {
   // Face detection using server-side SCRFD
   async function detectAndCropFace(base64, isDocumentPhoto = false) {
     try {
-      console.log('Sending face detection request...', { isDocumentPhoto });
+      // console.log('Sending face detection request...', { isDocumentPhoto });
       
       // Ensure image is properly formatted
       let imageData = base64;
@@ -503,23 +503,23 @@ export default function RegistrationFlow() {
         img.onerror = reject;
         img.src = imageData;
       });
-      console.log('Original image dimensions:', {
-        width: img.width,
-        height: img.height,
-        aspectRatio: (img.width / img.height).toFixed(2)
-      });
+      // console.log('Original image dimensions:', {
+      //   width: img.width,
+      //   height: img.height,
+      //   aspectRatio: (img.width / img.height).toFixed(2)
+      // });
 
       // Calculate optimal parameters based on image size
       const minDimension = Math.min(img.width, img.height);
       const maxDimension = Math.max(img.width, img.height);
       const aspectRatio = maxDimension / minDimension;
 
-      console.log('Face detection parameters:', {
-        minDimension,
-        maxDimension,
-        aspectRatio,
-        isDocumentPhoto
-      });
+      // console.log('Face detection parameters:', {
+      //   minDimension,
+      //   maxDimension,
+      //   aspectRatio,
+      //   isDocumentPhoto
+      // });
 
       const response = await fetch('http://localhost:5000/api/ai/detect-faces', {
         method: 'POST',
@@ -530,23 +530,23 @@ export default function RegistrationFlow() {
       const result = await response.json();
       
       // Log all detected faces for debugging
-      if (result.faces && result.faces.length > 0) {
-        console.log('Detected faces:', result.faces.map((face, idx) => ({
-          index: idx,
-          confidence: face.confidence,
-          size: face.size || 'unknown',
-          position: face.position || 'unknown'
-        })));
-      }
+      // if (result.faces && result.faces.length > 0) {
+      //   console.log('Detected faces:', result.faces.map((face, idx) => ({
+      //     index: idx,
+      //     confidence: face.confidence,
+      //     size: face.size || 'unknown',
+      //     position: face.position || 'unknown'
+      //   })));
+      // }
       
-      console.log('Face detection response:', {
-        success: result.success,
-        faceCount: result.faces?.length || 0,
-        hasCroppedFace: !!result.croppedFace,
-        croppedFaceLength: result.croppedFace?.length || 0,
-        isDocumentPhoto,
-        selectedFaceIndex: result.selectedFaceIndex || 0
-      });
+      // console.log('Face detection response:', {
+      //   success: result.success,
+      //   faceCount: result.faces?.length || 0,
+      //   hasCroppedFace: !!result.croppedFace,
+      //   croppedFaceLength: result.croppedFace?.length || 0,
+      //   isDocumentPhoto,
+      //   selectedFaceIndex: result.selectedFaceIndex || 0
+      // });
       
       if (!result.success) {
         throw new Error(result.message || 'Face detection failed');
@@ -558,9 +558,9 @@ export default function RegistrationFlow() {
       
       // For live capture with multiple faces, provide helpful error
       if (!isDocumentPhoto && result.faces.length > 1) {
-        console.warn('Multiple faces detected:', result.faces.length);
-        console.warn('This might be due to reflections, shadows, or patterns in the background.');
-        console.warn('Using the most confident/largest face...');
+        // console.warn('Multiple faces detected:', result.faces.length);
+        // console.warn('This might be due to reflections, shadows, or patterns in the background.');
+        // console.warn('Using the most confident/largest face...');
         
         // Don't throw error, just use the best face (server should handle selection)
         // throw new Error('Multiple faces detected. Please ensure only your face is in the image.');
@@ -568,7 +568,7 @@ export default function RegistrationFlow() {
       
       // For document photo, use the largest face if multiple detected
       if (isDocumentPhoto && result.faces.length > 1) {
-        console.log(`Multiple faces detected in document (${result.faces.length}), server selected the best one`);
+        // console.log(`Multiple faces detected in document (${result.faces.length}), server selected the best one`);
       }
       
       if (!result.croppedFace) {
@@ -582,16 +582,16 @@ export default function RegistrationFlow() {
         croppedImg.onerror = reject;
         croppedImg.src = result.croppedFace;
       });
-      console.log('Cropped face dimensions:', {
-        width: croppedImg.width,
-        height: croppedImg.height,
-        aspectRatio: (croppedImg.width / croppedImg.height).toFixed(2),
-        isDocumentPhoto
-      });
+      // console.log('Cropped face dimensions:', {
+      //   width: croppedImg.width,
+      //   height: croppedImg.height,
+      //   aspectRatio: (croppedImg.width / croppedImg.height).toFixed(2),
+      //   isDocumentPhoto
+      // });
 
       return result.croppedFace;
     } catch (error) {
-      console.error('Face detection error:', error);
+      // console.error('Face detection error:', error);
       throw error; // Don't fallback to original image, show error instead
     }
   }
@@ -603,21 +603,21 @@ export default function RegistrationFlow() {
     setProcessing(true);
     setProcessingMessage("Processing document and extracting information...");
     
-    console.log('Starting document upload:', {
-      fileName: file.name,
-      size: file.size,
-      type: file.type
-    });
+    // console.log('Starting document upload:', {
+    //   fileName: file.name,
+    //   size: file.size,
+    //   type: file.type
+    // });
     
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target.result;
-      console.log('Document loaded as base64:', {
-        fileName: file.name,
-        base64Length: base64.length,
-        startsWithData: base64.startsWith('data:'),
-        mimeType: base64.split(';')[0].split(':')[1] || 'unknown'
-      });
+      // console.log('Document loaded as base64:', {
+      //   fileName: file.name,
+      //   base64Length: base64.length,
+      //   startsWithData: base64.startsWith('data:'),
+      //   mimeType: base64.split(';')[0].split(':')[1] || 'unknown'
+      // });
       
       // Ensure proper data URL format
       if (!base64.startsWith('data:')) {
@@ -631,7 +631,7 @@ export default function RegistrationFlow() {
       try {
         
         // Process OCR extraction
-        console.log('Sending document for OCR processing...');
+        // console.log('Sending document for OCR processing...');
         const ocrResponse = await fetch('http://localhost:5000/api/ocr/extract-text', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -642,7 +642,7 @@ export default function RegistrationFlow() {
         });
         
         const ocrResult = await ocrResponse.json();
-        console.log('OCR processing result:', ocrResult);
+        // console.log('OCR processing result:', ocrResult);
         
         // Extract face from document but keep full image
         const croppedFace = await detectAndCropFace(base64, true); // true for document photo
@@ -673,10 +673,10 @@ export default function RegistrationFlow() {
           if (ocrData.idNumber) detectedFields.push(`ID: ${ocrData.idNumber}`);
           if (ocrData.address) detectedFields.push(`Address: ${ocrData.address}`);
           
-          console.log('✅ OCR detected fields:', detectedFields.length > 0 ? detectedFields : 'None');
-          console.log('📊 OCR confidence:', ((ocrResult.data?.confidence || ocrResult.confidence || 0) * 100).toFixed(1) + '%');
+          // console.log('✅ OCR detected fields:', detectedFields.length > 0 ? detectedFields : 'None');
+          // console.log('📊 OCR confidence:', ((ocrResult.data?.confidence || ocrResult.confidence || 0) * 100).toFixed(1) + '%');
         } else {
-          console.log('❌ OCR failed or no text detected, fields left empty');
+          // console.log('❌ OCR failed or no text detected, fields left empty');
         }
         
         setUser((u) => ({
@@ -700,7 +700,7 @@ export default function RegistrationFlow() {
         setOcrEditable(extractedData);
         
       } catch (error) {
-        console.error('❌ Document processing failed:', error);
+        // console.error('❌ Document processing failed:', error);
         // Set empty data on error but still store full image
         const croppedFace = await detectAndCropFace(base64);
         setUser((u) => ({
@@ -773,12 +773,12 @@ export default function RegistrationFlow() {
       };
 
       // Ensure we have the full document image
-      console.log('Checking document image:', {
-        docBase64Present: !!docBase64,
-        docBase64Length: docBase64?.length || 0,
-        docBase64Type: docBase64?.split(';')[0].split(':')[1] || 'unknown',
-        docBase64StartsWithData: docBase64?.startsWith('data:') || false
-      });
+      // console.log('Checking document image:', {
+      //   docBase64Present: !!docBase64,
+      //   docBase64Length: docBase64?.length || 0,
+      //   docBase64Type: docBase64?.split(';')[0].split(':')[1] || 'unknown',
+      //   docBase64StartsWithData: docBase64?.startsWith('data:') || false
+      // });
 
       if (!docBase64) {
         setError("Document image is required. Please upload your ID document.");
@@ -802,21 +802,21 @@ export default function RegistrationFlow() {
       // Clear any previous errors
       setError('');
 
-      console.log('Registration data:', {
-        email: user.email,
-        phoneNumber: user.phoneNumber || 'Not provided',
-        birthDate: user.birthDate,
-        residency: user.residency,
-        hasIdImage: !!user.faceData.idFaceImage,
-        hasLiveImage: !!user.faceData.liveFaceImage,
-        idImageLength: user.faceData.idFaceImage?.length || 0,
-        liveImageLength: user.faceData.liveFaceImage?.length || 0,
-        ocrData: cleanedOcrData,
-        documentData: documentData,
-        hasFullDocument: !!docBase64,
-        fullDocumentLength: docBase64?.length || 0,
-        fullDocumentType: docBase64?.split(';')[0].split(':')[1] || 'unknown'
-      });
+      // console.log('Registration data:', {
+      //   email: user.email,
+      //   phoneNumber: user.phoneNumber || 'Not provided',
+      //   birthDate: user.birthDate,
+      //   residency: user.residency,
+      //   hasIdImage: !!user.faceData.idFaceImage,
+      //   hasLiveImage: !!user.faceData.liveFaceImage,
+      //   idImageLength: user.faceData.idFaceImage?.length || 0,
+      //   liveImageLength: user.faceData.liveFaceImage?.length || 0,
+      //   ocrData: cleanedOcrData,
+      //   documentData: documentData,
+      //   hasFullDocument: !!docBase64,
+      //   fullDocumentLength: docBase64?.length || 0,
+      //   fullDocumentType: docBase64?.split(';')[0].split(':')[1] || 'unknown'
+      // });
 
       // Call the registration API with face images, full document image, and OCR data
       const response = await authAPI.register({
@@ -846,7 +846,7 @@ export default function RegistrationFlow() {
         setShowModal(true);
       }
     } catch (err) {
-      console.error("Registration error:", err);
+      // console.error("Registration error:", err);
       setModalType('error');
       setModalMessage("Registration failed: " + err.message);
       setError("Registration failed: " + err.message);

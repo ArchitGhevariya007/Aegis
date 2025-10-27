@@ -58,17 +58,11 @@ router.post('/register', validateRegistration, async (req, res) => {
     } : null;
 
     console.log('Registration request received:', {
-      email,
-      phoneNumber: cleanPhoneNumber || 'Not provided',
-      hasIdFaceImage: !!idFaceImage,
-      hasLiveFaceImage: !!liveFaceImage,
-      idFaceImageLength: idFaceImage?.length || 0,
-      liveFaceImageLength: liveFaceImage?.length || 0,
-      hasOcrData: !!cleanOcrData,
-      ocrData: cleanOcrData,
-      hasDocumentData: !!documentData,
-      documentData: documentData,
-      hasFullDocument: !!req.body.fullDocumentImage
+        email: req.body.email,
+        hasPhoneNumber: !!req.body.phoneNumber,
+        hasIdFace: !!req.body.idFaceImage,
+        hasLiveImage: !!req.body.liveFaceImage,
+        hasDocument: !!req.body.fullDocumentImage
     });
 
     // Check if user already exists
@@ -84,28 +78,39 @@ router.post('/register', validateRegistration, async (req, res) => {
     }
 
     // Verify faces using new pipeline
-    if (!idFaceImage || !liveFaceImage) {
-      console.log('Missing face images:', { idFaceImage: !!idFaceImage, liveFaceImage: !!liveFaceImage });
-      return res.status(400).json({
-        success: false,
-        message: 'Both ID face image and live face image are required'
-      });
-    }
+    let faceComparison;
+    try {
+      // Verify required fields
+      const { idFaceImage, liveFaceImage } = req.body;
+      if (!idFaceImage || !liveFaceImage) {
+        // console.log('Missing face images:', { idFaceImage: !!idFaceImage, liveFaceImage: !!liveFaceImage });
+        return res.status(400).json({
+          success: false,
+          message: 'Both ID face and live face images are required'
+        });
+      }
 
-    const faceComparison = await facePipeline.compareFaceImages(idFaceImage, liveFaceImage);
-    
-    if (!faceComparison.success) {
-      return res.status(400).json({
-        success: false,
-        message: 'Face verification failed: ' + faceComparison.error
-      });
-    }
+      faceComparison = await facePipeline.compareFaceImages(idFaceImage, liveFaceImage);
+      
+      if (!faceComparison.success) {
+        return res.status(400).json({
+          success: false,
+          message: 'Face verification failed: ' + faceComparison.error
+        });
+      }
 
-    if (!faceComparison.is_match) {
-      return res.status(400).json({
+      if (!faceComparison.is_match) {
+        return res.status(400).json({
+          success: false,
+          message: `Face did not match document photo. Similarity: ${(faceComparison.similarity * 100).toFixed(1)}%`,
+          similarity: faceComparison.similarity
+        });
+      }
+    } catch (faceError) {
+      console.error('Face verification error:', faceError);
+      return res.status(500).json({
         success: false,
-        message: `Face did not match document photo. Similarity: ${(faceComparison.similarity * 100).toFixed(1)}%`,
-        similarity: faceComparison.similarity
+        message: 'Face verification failed. Please try again.'
       });
     }
 
@@ -141,12 +146,12 @@ router.post('/register', validateRegistration, async (req, res) => {
               const buffer = Buffer.from(base64Data, 'base64');
               
               // Store on blockchain
-              console.log('📄 Storing ID document on blockchain...');
-              console.log(`   Document size: ${buffer.length} bytes`);
+              // console.log('📄 Storing ID document on blockchain...');
+              // console.log(`   Document size: ${buffer.length} bytes`);
               
               const result = await blockchainService.storeDocument(buffer, 'id_document.jpg', email);
-              console.log('✅ Document stored on blockchain:', result.transactionHash);
-              console.log(`   IPFS Hash: ${result.ipfsHash}`);
+              // console.log('✅ Document stored on blockchain:', result.transactionHash);
+              // console.log(`   IPFS Hash: ${result.ipfsHash}`);
               
               return {
                 documentHash: result.documentHash,
@@ -160,7 +165,7 @@ router.post('/register', validateRegistration, async (req, res) => {
                 timestamp: new Date().toISOString()
               };
             } catch (error) {
-              console.error('❌ Failed to store document on blockchain:', error);
+              console.error('Failed to store document on blockchain:', error);
               return {
                 blockchainStored: false,
                 error: error.message,
@@ -200,7 +205,7 @@ router.post('/register', validateRegistration, async (req, res) => {
 
     await user.save();
     
-    console.log(`[BLOCKCHAIN] Generated blockchain data for new user ${user.email}`);
+    // console.log(`[BLOCKCHAIN] Generated blockchain data for new user ${user.email}`);
 
     // Send welcome email
     await sendWelcomeEmail(user.email);
@@ -217,7 +222,7 @@ router.post('/register', validateRegistration, async (req, res) => {
         status: 'success',
         loginType: 'register'
       });
-      console.log(`[LOCATION] Tracked registration location for ${user.email}`);
+      // console.log(`[LOCATION] Tracked registration location for ${user.email}`);
     } catch (locError) {
       console.error('[LOCATION] Error tracking registration location:', locError.message);
     }
@@ -255,7 +260,7 @@ router.post('/login', validateLogin, async (req, res) => {
     });
 
     if (activeLockdown) {
-      console.log('[LOCKDOWN] Login attempt blocked - system in lockdown mode');
+      // console.log('[LOCKDOWN] Login attempt blocked - system in lockdown mode');
       return res.status(403).json({
         success: false,
         message: '🔒 System is currently in lockdown mode. All user login attempts are blocked. Please contact your administrator.',
@@ -414,7 +419,7 @@ router.post('/logout', auth, async (req, res) => {
       }
     );
 
-    console.log(`[LOGOUT] User ${userId} logged out from session ${sessionId}`);
+    // console.log(`[LOGOUT] User ${userId} logged out from session ${sessionId}`);
 
     res.json({
       success: true,
@@ -594,7 +599,7 @@ router.get('/blockchain-id', auth, async (req, res) => {
       user.blockchainData = generateBlockchainData();
       await user.save();
       
-      console.log(`[BLOCKCHAIN] Generated blockchain data for user ${user.email}`);
+      // console.log(`[BLOCKCHAIN] Generated blockchain data for user ${user.email}`);
     }
 
     res.json({
@@ -741,7 +746,7 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
       customName.trim() : 
       req.file.originalname;
 
-    console.log(`📄 Starting blockchain upload for: ${finalFileName} (Category: ${documentCategory}, original: ${req.file.originalname})`);
+    // console.log(`📄 Starting blockchain upload for: ${finalFileName} (Category: ${documentCategory}, original: ${req.file.originalname})`);
     
     // Read file buffer
     const fileBuffer = fs.readFileSync(req.file.path);
@@ -790,9 +795,9 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
       if (fs.existsSync(req.file.path)) {
         try {
           fs.unlinkSync(req.file.path);
-          console.log('✅ Local file deleted after blockchain storage');
+          // console.log('✅ Local file deleted after blockchain storage');
         } catch (deleteError) {
-          console.warn('⚠️ Failed to delete local file:', deleteError.message);
+          // console.warn('⚠️ Failed to delete local file:', deleteError.message);
         }
       }
 
@@ -857,7 +862,7 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
       try {
         fs.unlinkSync(req.file.path);
       } catch (cleanupError) {
-        console.warn('Failed to cleanup file after error:', cleanupError.message);
+        // console.warn('Failed to cleanup file after error:', cleanupError.message);
       }
     }
 
@@ -884,21 +889,21 @@ router.get('/download-document/:documentId', auth, async (req, res) => {
     // Check if document is stored on blockchain
     if (document.blockchainData && document.blockchainData.blockchainStored) {
       try {
-        console.log(`📥 Blockchain document detected: ${document.fileName}`);
-        console.log(`   Transaction: ${document.blockchainData.transactionHash}`);
-        console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
+        // console.log(`📥 Blockchain document detected: ${document.fileName}`);
+        // console.log(`   Transaction: ${document.blockchainData.transactionHash}`);
+        // console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
         
       // For now, fall back to local file since we don't have smart contract
       // In production, this would download from IPFS and decrypt
-      console.log(`📁 Checking local file: ${document.filePath}`);
-      console.log(`📁 File exists: ${document.filePath ? fs.existsSync(document.filePath) : 'No file path'}`);
+      // console.log(`📁 Checking local file: ${document.filePath}`);
+      // console.log(`📁 File exists: ${document.filePath ? fs.existsSync(document.filePath) : 'No file path'}`);
       
       if (document.filePath && fs.existsSync(document.filePath)) {
-        console.log('📁 Serving from local backup copy (blockchain verified)');
+        // console.log('📁 Serving from local backup copy (blockchain verified)');
         res.download(document.filePath, document.fileName);
         return;
       } else {
-        console.log(`📥 Local file not found, retrieving from IPFS...`);
+        // console.log(`📥 Local file not found, retrieving from IPFS...`);
         
         try {
           // Retrieve and decrypt from IPFS
@@ -922,7 +927,7 @@ router.get('/download-document/:documentId', auth, async (req, res) => {
             });
           }
 
-          console.log(`✅ Successfully retrieved and verified document from IPFS`);
+          // console.log(`✅ Successfully retrieved and verified document from IPFS`);
 
           // Set appropriate headers and send decrypted document
           res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
@@ -994,8 +999,8 @@ router.get('/view-document/:documentId', auth, async (req, res) => {
     // Check if document is stored on blockchain
     if (document.blockchainData && document.blockchainData.blockchainStored) {
       try {
-        console.log(`📥 Viewing blockchain document: ${document.fileName}`);
-        console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
+        // console.log(`📥 Viewing blockchain document: ${document.fileName}`);
+        // console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
         
         // Retrieve and decrypt from IPFS
         const result = await blockchainService.retrieveDocumentFromIPFS(
@@ -1018,7 +1023,7 @@ router.get('/view-document/:documentId', auth, async (req, res) => {
           });
         }
         
-        console.log('✅ Document retrieved and verified from blockchain');
+        // console.log('✅ Document retrieved and verified from blockchain');
         res.setHeader('Content-Type', 'image/jpeg');
         res.send(result.documentBuffer);
         return;
@@ -1353,22 +1358,22 @@ router.delete('/delete-document/:documentId', auth, async (req, res) => {
     }
 
     const document = user.documents[documentIndex];
-    console.log(`🗑️ Deleting document: ${document.fileName}`);
+    // console.log(`🗑️ Deleting document: ${document.fileName}`);
 
     // Delete from local storage if exists
     if (document.filePath && fs.existsSync(document.filePath)) {
       try {
         fs.unlinkSync(document.filePath);
-        console.log(`✅ Deleted local file: ${document.filePath}`);
+        // console.log(`✅ Deleted local file: ${document.filePath}`);
       } catch (fileError) {
-        console.warn(`⚠️ Could not delete local file: ${fileError.message}`);
+        // console.warn(`⚠️ Could not delete local file: ${fileError.message}`);
       }
     }
 
     // Delete from Pinata IPFS if stored on blockchain
     if (document.blockchainData?.ipfsHash) {
       try {
-        console.log(`🗑️ Attempting to unpin from Pinata: ${document.blockchainData.ipfsHash}`);
+        // console.log(`🗑️ Attempting to unpin from Pinata: ${document.blockchainData.ipfsHash}`);
         
         // First, check if the file exists on Pinata
         try {
@@ -1380,13 +1385,13 @@ router.delete('/delete-document/:documentId', auth, async (req, res) => {
           });
           
           if (checkResponse.data.count === 0) {
-            console.log(`ℹ️ File not found on Pinata (may already be unpinned): ${document.blockchainData.ipfsHash}`);
+            // console.log(`ℹ️ File not found on Pinata (may already be unpinned): ${document.blockchainData.ipfsHash}`);
             return;
           }
           
-          console.log(`📋 Found ${checkResponse.data.count} file(s) on Pinata for hash: ${document.blockchainData.ipfsHash}`);
+          // console.log(`📋 Found ${checkResponse.data.count} file(s) on Pinata for hash: ${document.blockchainData.ipfsHash}`);
         } catch (checkError) {
-          console.warn(`⚠️ Could not check Pinata status: ${checkError.message}`);
+          // console.warn(`⚠️ Could not check Pinata status: ${checkError.message}`);
         }
         
         // Proceed with unpinning
@@ -1398,9 +1403,9 @@ router.delete('/delete-document/:documentId', auth, async (req, res) => {
         });
         
         if (response.status === 200) {
-          console.log(`✅ Successfully unpinned from Pinata: ${document.blockchainData.ipfsHash}`);
+          // console.log(`✅ Successfully unpinned from Pinata: ${document.blockchainData.ipfsHash}`);
         } else {
-          console.warn(`⚠️ Unexpected response from Pinata: ${response.status} - ${response.statusText}`);
+          // console.warn(`⚠️ Unexpected response from Pinata: ${response.status} - ${response.statusText}`);
         }
       } catch (pinataError) {
         console.error(`❌ Pinata unpin error for ${document.blockchainData.ipfsHash}:`, {
@@ -1412,7 +1417,7 @@ router.delete('/delete-document/:documentId', auth, async (req, res) => {
         
         // If it's a 404, the file might already be unpinned
         if (pinataError.response?.status === 404) {
-          console.log(`ℹ️ File not found on Pinata (already unpinned): ${document.blockchainData.ipfsHash}`);
+          // console.log(`ℹ️ File not found on Pinata (already unpinned): ${document.blockchainData.ipfsHash}`);
         }
       }
     }
@@ -1421,7 +1426,7 @@ router.delete('/delete-document/:documentId', auth, async (req, res) => {
     user.documents.splice(documentIndex, 1);
     await user.save();
 
-    console.log(`✅ Document deleted successfully: ${document.fileName}`);
+    // console.log(`✅ Document deleted successfully: ${document.fileName}`);
 
     res.json({
       success: true,
