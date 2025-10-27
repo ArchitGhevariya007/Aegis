@@ -759,7 +759,7 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
         type: 'additional',
         fileName: finalFileName,
         documentCategory: documentCategory || 'Uncategorized', // Store document category
-        filePath: req.file.path, // Keep local copy as backup
+        // Don't store filePath - only blockchain storage is used
         uploadDate: new Date(),
         verified: blockchainResult.verified,
         // Blockchain specific data
@@ -775,10 +775,6 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
         }
       };
 
-      console.log(`📁 Storing document with file path: ${req.file.path}`);
-      console.log(`📁 File exists: ${fs.existsSync(req.file.path)}`);
-      console.log(`📁 File size: ${fs.statSync(req.file.path).size} bytes`);
-
       req.user.documents.push(newDocument);
       
       // Update user's blockchain data
@@ -790,9 +786,15 @@ router.post('/upload-document', auth, uploadIdDocument, handleUploadError, async
 
       await req.user.save();
 
-      // Keep local file as backup for easier access
-      // Note: In production, you might want to delete this after confirming IPFS storage
-      console.log('📁 Keeping local backup copy for easier access');
+      // Delete local file after successful blockchain storage - only store on blockchain
+      if (fs.existsSync(req.file.path)) {
+        try {
+          fs.unlinkSync(req.file.path);
+          console.log('✅ Local file deleted after blockchain storage');
+        } catch (deleteError) {
+          console.warn('⚠️ Failed to delete local file:', deleteError.message);
+        }
+      }
 
       // Log document upload activity
       await req.user.logAccess('data_access', true, ipAddress, userAgent);
@@ -991,33 +993,8 @@ router.get('/view-document/:documentId', auth, async (req, res) => {
 
     // Check if document is stored on blockchain
     if (document.blockchainData && document.blockchainData.blockchainStored) {
-      console.log(`📥 Viewing blockchain document: ${document.fileName}`);
-      console.log(`   Transaction: ${document.blockchainData.transactionHash}`);
-      console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
-      
-      // For now, return info about blockchain storage since we don't have full IPFS retrieval
-      return res.json({
-        success: true,
-        message: 'Document is securely stored on blockchain',
-        document: {
-          fileName: document.fileName,
-          uploadDate: document.uploadDate,
-          verified: document.verified,
-          blockchain: {
-            stored: true,
-            transactionHash: document.blockchainData.transactionHash,
-            ipfsHash: document.blockchainData.ipfsHash,
-            verified: true
-          }
-        },
-        note: 'Document is encrypted and stored on IPFS. Use download to get the file.'
-      });
-    }
-
-    // For blockchain-stored documents
-    if (document.blockchainData?.blockchainStored) {
       try {
-        console.log(`📄 Retrieving document from blockchain: ${document.fileName}`);
+        console.log(`📥 Viewing blockchain document: ${document.fileName}`);
         console.log(`   IPFS Hash: ${document.blockchainData.ipfsHash}`);
         
         // Retrieve and decrypt from IPFS

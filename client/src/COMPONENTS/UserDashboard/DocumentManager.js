@@ -236,7 +236,11 @@ export default function DocumentManager() {
                 setModalType('upload');
                 setSuccessMessage(`Document "${getDisplayName(finalFileName)}" uploaded successfully!`);
                 setShowSuccessModal(true);
-                fetchDocuments(); // Refresh documents list
+                
+                // Wait a moment for database to fully update, then refresh
+                setTimeout(() => {
+                    fetchDocuments();
+                }, 500);
             } else {
                 const error = await response.json();
                 setShowLoadingModal(false);
@@ -316,6 +320,15 @@ export default function DocumentManager() {
     const viewDocument = async (documentId) => {
         try {
             const token = localStorage.getItem('authToken');
+            const doc = documents.find(d => d._id === documentId);
+            const isBlockchain = doc?.blockchainData?.blockchainStored;
+            
+            // Show loading for blockchain documents
+            if (isBlockchain) {
+                setLoadingMessage('Retrieving document from blockchain...');
+                setShowLoadingModal(true);
+            }
+            
             const response = await fetch(`http://localhost:5000/api/auth/view-document/${documentId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -325,32 +338,42 @@ export default function DocumentManager() {
             if (response.ok) {
                 const contentType = response.headers.get('content-type');
                 
-                if (contentType && contentType.includes('application/json')) {
-                    // Blockchain document - show information in modal
-                    const data = await response.json();
-                    setViewingDocument({
-                        type: 'blockchain',
-                        data: data
-                    });
-                } else {
-                    // Regular document - show in modal
+                if (contentType && contentType.includes('image')) {
+                    // Image document - show in modal
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
-                    const doc = documents.find(d => d._id === documentId);
+                    setViewingDocument({
+                        type: 'file',
+                        url: url,
+                        fileName: doc?.fileName || 'Document'
+                    });
+                } else if (contentType && contentType.includes('application/json')) {
+                    // JSON error response - blockchain retrieval failed
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to retrieve blockchain document');
+                } else {
+                    // Other file types
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
                     setViewingDocument({
                         type: 'file',
                         url: url,
                         fileName: doc?.fileName || 'Document'
                     });
                 }
+                
                 setShowViewModal(true);
+                if (isBlockchain) {
+                    setShowLoadingModal(false);
+                }
             } else {
-                const errorData = await response.json();
-                alert(`Failed to view document: ${errorData.message}`);
+                const errorData = await response.json().catch(() => ({ message: 'Failed to retrieve document' }));
+                throw new Error(errorData.message || 'Failed to view document');
             }
         } catch (error) {
             console.error('Error viewing document:', error);
-            alert('Failed to view document');
+            setShowLoadingModal(false);
+            alert(`Failed to view document: ${error.message}`);
         }
     };
 
@@ -443,19 +466,21 @@ export default function DocumentManager() {
                 <div className="border rounded-xl p-4">
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="font-medium text-slate-700">Uploaded Documents</h3>
-                        {documents.filter(doc => doc.type === 'id_document').length > 0 && (
+                        {documents.filter(doc => doc.verified).length > 0 && (
                             <span className="text-xs lg:text-sm text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1">
                                 <CheckIcon className="w-3 h-3" />
-                                {documents.filter(doc => doc.type === 'id_document' && doc.verified).length} Verified
+                                {documents.filter(doc => doc.verified).length} Verified
                             </span>
                         )}
                     </div>
                     
-                    {documents.filter(doc => doc.type === 'id_document').length === 0 ? (
+                    {documents.length === 0 ? (
                         <p className="text-slate-500 text-center py-8">No documents uploaded yet</p>
                     ) : (
                         <div className="grid gap-3">
-                        {documents.filter(doc => doc.type === 'id_document').map((doc) => {
+                        {documents
+                            .filter(doc => doc.type !== 'id_face' && doc.type !== 'live_face')
+                            .map((doc) => {
                             const { icon: IconComponent, bgColor, iconColor } = getDocumentIcon(doc.type);
                             const isBlockchainStored = doc.blockchainData?.blockchainStored;
                             
@@ -470,6 +495,11 @@ export default function DocumentManager() {
                                             {doc.documentCategory && (
                                                 <p className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded inline-block mb-1">
                                                     {doc.documentCategory}
+                                                </p>
+                                            )}
+                                            {doc.type === 'id_document' && doc.ocrData?.documentType && (
+                                                <p className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded inline-block mb-1 ml-1">
+                                                    {doc.ocrData.documentType}
                                                 </p>
                                             )}
                                             <div className="flex items-center gap-2 flex-wrap">
